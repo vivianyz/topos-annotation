@@ -229,8 +229,8 @@ if not ss['initialized']:
 # ── ANNOTATION ──
 svc=ss['service']; feature=FEATURES[ss['feature_idx']]
 
-# Always get fresh counts from session state
-mp=ss['my_patches']; c=get_counts(mp)
+# Always get fresh data from session state
+mp=ss['my_patches']; c=get_counts(ss['my_patches'])
 in_review = ss['review_mode'] is not None
 progress = f"{c['done']}/{c['total']}" if in_review else f"{c['done']+1}/{c['total']}"
 
@@ -261,8 +261,9 @@ def adv_feat():
     st.rerun()
 
 def enter_rev(rt):
-    ps = ss['my_patches'][ss['my_patches']['was_skipped'].apply(is_true)] if rt=='skipped' \
-         else ss['my_patches'][ss['my_patches']['was_flagged'].apply(is_true)]
+    fmp = ss['my_patches']
+    ps = fmp[fmp['was_skipped'].apply(is_true)] if rt=='skipped' \
+         else fmp[fmp['was_flagged'].apply(is_true)]
     if len(ps)>0:
         ss['review_mode']=rt; ss['review_idx']=0
         ss['review_patches']=ps.reset_index(drop=True)
@@ -294,14 +295,15 @@ if ss['review_mode'] is not None:
     if idx>=len(ps): nxt_rev(rt); st.stop()
     row=ps.iloc[idx]; pid=row['patch_id']
 
-    # Compute header counts
+    # Compute header counts from latest data
+    fresh_mp = ss['my_patches']
     if rt=='skipped':
-        n_total   = int(mp['was_skipped'].apply(is_true).sum())
-        n_labeled = int((mp['was_skipped'].apply(is_true) & mp['label'].isin(['present','absent'])).sum())
+        n_total   = int(fresh_mp['was_skipped'].apply(is_true).sum())
+        n_labeled = int((fresh_mp['was_skipped'].apply(is_true) & fresh_mp['label'].isin(['present','absent'])).sum())
         header = f"⏭ Review {n_labeled}/{n_total} skipped patches"
     else:
-        n_total   = int(mp['was_flagged'].apply(is_true).sum())
-        n_labeled = int((mp['was_flagged'].apply(is_true) & mp['label'].isin(['present','absent'])).sum())
+        n_total   = int(fresh_mp['was_flagged'].apply(is_true).sum())
+        n_labeled = int((fresh_mp['was_flagged'].apply(is_true) & fresh_mp['label'].isin(['present','absent'])).sum())
         header = f"🚩 Review {n_labeled}/{n_total} flagged patches"
     st.markdown(f"#### {header}")
     if rt=='flagged':
@@ -320,7 +322,7 @@ if ss['review_mode'] is not None:
             ss['review_idx']+=1
             save()
 else:
-    ul=get_unlabeled(mp)
+    ul=get_unlabeled(ss['my_patches'])
     if len(ul)==0: enter_rev('skipped'); st.stop()
     pid=ul.iloc[0]['patch_id']; show_img(pid); st.divider()
     if ss.get('saving', False):
