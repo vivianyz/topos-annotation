@@ -110,7 +110,7 @@ def init_state():
         'initialized':False,'service':None,
         'assignments_df':None,'my_patches':None,'csv_file_id':None,
         'csv_filename':None,'feature_idx':0,'review_mode':None,
-        'review_idx':0,'review_patches':None,'patch_start':None,
+        'review_idx':0,'review_patches':None,'review_total':0,'patch_start':None,
         'flagging':False,'patch_index':None,'saving':False,
         'annotations_folder_id':None,'patches_folder_id':None,
     }.items():
@@ -119,12 +119,14 @@ def init_state():
 init_state()
 
 def get_counts(mp):
+    labeled = mp['label'].isin(['present','absent'])
     return {
-        'total':len(mp),'done':int(mp['label'].notna().sum()),
+        'total':len(mp),
+        'done':int(labeled.sum()),
         'present':int((mp['label']=='present').sum()),
         'absent':int((mp['label']=='absent').sum()),
-        'skipped':count_true(mp['was_skipped']),
-        'flagged':count_true(mp['was_flagged']),
+        'skipped':int((mp['label']=='skipped').sum()),
+        'flagged':int((mp['was_flagged'].apply(is_true) & ~labeled).sum()),
     }
 
 def get_unlabeled(mp): return mp[mp['label'].isna() | (mp['label'] == '')].reset_index(drop=True)
@@ -163,21 +165,22 @@ def save_all(mp, fid, fname, ann_fid):
 def upd(mp, pid, label, elapsed, is_review=False, orig=None):
     idx = mp[mp['patch_id']==pid].index[0]
     mp.at[idx,'label'] = label
-    mp.at[idx,'was_skipped'] = 'False'
+    # was_skipped and was_flagged are permanent history — never cleared
     if elapsed: mp.at[idx,'review_time_seconds' if is_review else 'time_seconds'] = str(elapsed)
-    if is_review: mp.at[idx,'final_label'] = label
+    if is_review:
+        mp.at[idx,'final_label'] = label
     if orig:
         mp.at[idx,'original_label'] = orig
         mp.at[idx,'was_flagged'] = 'True'
     else:
-        mp.at[idx,'original_label'] = label
-        mp.at[idx,'final_label'] = label
+        if not is_review:
+            mp.at[idx,'original_label'] = label
+            mp.at[idx,'final_label'] = label
     return mp
 
 def skip_p(mp, pid, elapsed):
     idx = mp[mp['patch_id']==pid].index[0]
     mp.at[idx,'was_skipped']='True'
-    mp.at[idx,'was_flagged']='False'
     mp.at[idx,'label']='skipped'  # mark as skipped so it's excluded from unlabeled
     if elapsed: mp.at[idx,'time_seconds']=str(elapsed)
     return mp
@@ -224,10 +227,15 @@ if not ss['initialized']:
             st.stop()
 
 # ── ANNOTATION ──
-svc=ss['service']; feature=FEATURES[ss['feature_idx']]; mp=ss['my_patches']; c=get_counts(mp)
+svc=ss['service']; feature=FEATURES[ss['feature_idx']]
+
+# Always get fresh counts from session state
+mp=ss['my_patches']; c=get_counts(mp)
+in_review = ss['review_mode'] is not None
+progress = f"{c['done']}/{c['total']}" if in_review else f"{c['done']+1}/{c['total']}"
 
 st.markdown(
-    f"**👤 Annotator {ANNOTATOR_ID}** | **📋 {feature}** | **📊 {c['done']+1}/{c['total']}**"
+    f"**👤 Annotator {ANNOTATOR_ID}** | **📋 {feature}** | **📊 {progress}**"
     f"&nbsp;&nbsp; ✅**{c['present']}** ❌**{c['absent']}** ⏭**{c['skipped']}** 🚩**{c['flagged']}**"
 )
 st.divider()
@@ -257,7 +265,9 @@ def enter_rev(rt):
          else ss['my_patches'][ss['my_patches']['was_flagged'].apply(is_true)]
     if len(ps)>0:
         ss['review_mode']=rt; ss['review_idx']=0
-        ss['review_patches']=ps.reset_index(drop=True); ss['patch_start']=time.time()
+        ss['review_patches']=ps.reset_index(drop=True)
+        ss['review_total']=len(ps)  # fixed total for this review round
+        ss['patch_start']=time.time()
         st.rerun()
     else: nxt_rev(rt)
 
@@ -283,7 +293,7 @@ if ss['review_mode'] is not None:
     rt=ss['review_mode']; ps=ss['review_patches']; idx=ss['review_idx']
     if idx>=len(ps): nxt_rev(rt); st.stop()
     row=ps.iloc[idx]; pid=row['patch_id']
-    st.markdown(f"#### {'⏭' if rt=='skipped' else '🚩'} Reviewing {rt} — {idx+1}/{len(ps)}")
+    st.markdown(f"#### {'⏭' if rt=='skipped' else '🚩'} Reviewing {rt} — {idx+1}/{ss.get('review_total', len(ps))}")
     if rt=='flagged':
         orig=str(row.get('original_label',''))
         if orig not in ('nan','<NA>','','None'): st.info(f"🏷️ Original: **{orig}**")
