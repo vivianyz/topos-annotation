@@ -297,7 +297,16 @@ def nxt_rev(cur):
     elif ss['feature_idx']<len(FEATURES)-1: adv_feat()
     else:
         st.balloons()
-        st.success("🎉 All done! Thank you for your annotations.")
+        completed = ss['feature_idx'] + 1
+        st.success(f"""
+## 🎉 Congratulations, Annotator {ANNOTATOR_ID}!
+
+You have completed **{completed} of {len(FEATURES)} feature rounds** for your assigned patches.
+
+Thank you for contributing to Project Imperiia — TopoS. Your annotations help digitize the Military-Topographic Survey of European Russia (MTSER) and bring 19th-century maps to life for modern research.
+
+Your results have been saved automatically. You may now close this window.
+        """)
         st.stop()
 
 INSTRUCTIONS = """
