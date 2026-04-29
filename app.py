@@ -262,12 +262,22 @@ def adv_feat():
 
 def enter_rev(rt):
     fmp = ss['my_patches']
-    ps = fmp[fmp['was_skipped'].apply(is_true)] if rt=='skipped' \
-         else fmp[fmp['was_flagged'].apply(is_true)]
+    if rt=='skipped':
+        ps = fmp[fmp['label']=='skipped']
+    else:
+        ps = fmp[
+            fmp['was_flagged'].apply(is_true) &
+            ~fmp['label'].isin(['present','absent']) == False
+        ]
+        # flagged but not yet reviewed = was_flagged=True and original_label==final_label
+        ps = fmp[
+            fmp['was_flagged'].apply(is_true) &
+            (fmp['final_label'].isna() | (fmp['final_label']==fmp['original_label']))
+        ]
     if len(ps)>0:
         ss['review_mode']=rt; ss['review_idx']=0
         ss['review_patches']=ps.reset_index(drop=True)
-        ss['review_total']=len(ps)  # fixed total for this review round
+        ss['review_total']=len(ps)
         ss['patch_start']=time.time()
         st.rerun()
     else: nxt_rev(rt)
