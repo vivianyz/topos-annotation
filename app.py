@@ -289,6 +289,16 @@ else:
     ul=get_unlabeled(mp)
     if len(ul)==0: enter_rev('skipped'); st.stop()
     pid=ul.iloc[0]['patch_id']; show_img(pid); st.divider()
+
+    # 10 second minimum timer
+    MIN_SECONDS = 10
+    time_spent = elapsed() or 0
+    time_left = max(0, MIN_SECONDS - int(time_spent))
+    if time_left > 0:
+        st.info(f"⏱️ Please study the image... **{time_left}s** remaining")
+        time.sleep(1)
+        st.rerun()
+
     if ss['flagging']:
         st.warning("🚩 Flag as which? Choose your best guess — marked for review.")
         c1,c2,c3=st.columns(3)
