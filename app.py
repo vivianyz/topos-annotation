@@ -124,7 +124,7 @@ def init_state():
         'assignments_df':None,'my_patches':None,'csv_file_id':None,
         'csv_filename':None,'feature_idx':0,'review_mode':None,
         'review_idx':0,'review_patches':None,'review_total':0,'patch_start':None,
-        'flagging':False,'patch_index':None,'saving':False,
+        'flagging':False,'patch_index':None,'saving':False,'show_congrats':None,'all_done':False,
         'annotations_folder_id':None,'patches_folder_id':None,
     }.items():
         if k not in st.session_state: st.session_state[k] = v
@@ -242,6 +242,20 @@ if not ss['initialized']:
 # ── ANNOTATION ──
 svc=ss['service']; feature=FEATURES[ss['feature_idx']]
 
+# All done screen
+if ss.get('all_done'):
+    st.balloons()
+    st.success(f"""
+## 🎉 Congratulations, Annotator {ANNOTATOR_ID}!
+
+You have completed **all {len(FEATURES)} feature rounds** for your assigned patches.
+
+Thank you for contributing to Project Imperiia — TopoS. Your annotations help digitize the Military-Topographic Survey of European Russia (MTSER) and bring 19th-century maps to life for modern research.
+
+Your results have been saved automatically. You may now close this window.
+    """)
+    st.stop()
+
 # Page header
 st.markdown("#### 🗺️ Welcome to Project Imperiia — TopoS &nbsp; <small style='font-weight:normal;'>— You are helping digitize the Military-Topographic Survey of European Russia (MTSER), a 19th-century map series.</small>", unsafe_allow_html=True)
 
@@ -254,6 +268,11 @@ st.markdown(
     f"**👤 Annotator {ANNOTATOR_ID}** | **📋 {feature}** | **📊 {progress}**"
     f"&nbsp;&nbsp; ✅**{c['present']}** ❌**{c['absent']}** ⏭**{c['skipped']}** 🚩**{c['flagged']}**"
 )
+
+if ss.get('show_congrats'):
+    completed = ss['show_congrats']
+    st.success(f"🎉 Congratulations! You completed **Feature {completed} of {len(FEATURES)}**. Moving to Feature {completed + 1}...")
+    ss['show_congrats'] = None
 
 def elapsed(): return round(time.time()-ss['patch_start'],1) if ss['patch_start'] else None
 def save():
@@ -269,10 +288,12 @@ if ss.get('saving', False):
     st.rerun()
 
 def adv_feat():
-    ni=ss['feature_idx']+1
-    mp2,fid,fn=load_feature(svc,ANNOTATOR_ID,ni,ss['assignments_df'],ss['annotations_folder_id'])
-    ss.update({'feature_idx':ni,'review_mode':None,'my_patches':mp2,
-               'csv_file_id':fid,'csv_filename':fn,'patch_start':time.time()})
+    ni = ss['feature_idx'] + 1
+    completed = ss['feature_idx'] + 1
+    mp2, fid, fn = load_feature(svc, ANNOTATOR_ID, ni, ss['assignments_df'], ss['annotations_folder_id'])
+    ss.update({'feature_idx': ni, 'review_mode': None, 'my_patches': mp2,
+               'csv_file_id': fid, 'csv_filename': fn, 'patch_start': time.time(),
+               'show_congrats': completed})
     st.rerun()
 
 def enter_rev(rt):
@@ -296,18 +317,8 @@ def nxt_rev(cur):
     if cur=='skipped': enter_rev('flagged')
     elif ss['feature_idx']<len(FEATURES)-1: adv_feat()
     else:
-        st.balloons()
-        completed = ss['feature_idx'] + 1
-        st.success(f"""
-## 🎉 Congratulations, Annotator {ANNOTATOR_ID}!
-
-You have completed **{completed} of {len(FEATURES)} feature rounds** for your assigned patches.
-
-Thank you for contributing to Project Imperiia — TopoS. Your annotations help digitize the Military-Topographic Survey of European Russia (MTSER) and bring 19th-century maps to life for modern research.
-
-Your results have been saved automatically. You may now close this window.
-        """)
-        st.stop()
+        ss['all_done'] = True
+        st.rerun()
 
 INSTRUCTIONS = """
 **Welcome to Project Imperiia — TopoS**
