@@ -12,6 +12,7 @@ SCOPES = ['https://www.googleapis.com/auth/drive']
 FOLDER_ID = st.secrets["TOPOS_FOLDER_ID"]
 PATCHES_FOLDER_ID = st.secrets["PATCHES_FOLDER_ID"]
 FEATURES = ['Feature_1', 'Feature_2', 'Feature_3', 'Feature_4']
+ANNOTATOR_ID = '000'  # hardcoded for test app
 
 @st.cache_resource
 def get_creds():
@@ -21,8 +22,7 @@ def get_creds():
 
 @st.cache_resource
 def get_drive_service():
-    creds = get_creds()
-    return build('drive', 'v3', credentials=creds)
+    return build('drive', 'v3', credentials=get_creds())
 
 def get_token():
     creds = get_creds()
@@ -48,11 +48,9 @@ def dl_csv(svc, file_id):
     return pd.read_csv(buf, dtype=str, engine='python')
 
 def ul_csv(df, file_id, name, folder_id):
-    """Upload CSV using requests instead of httplib2 to avoid SSL issues."""
     token = get_token()
     headers = {'Authorization': f'Bearer {token}'}
     csv_bytes = df.to_csv(index=False).encode('utf-8')
-
     for attempt in range(3):
         try:
             if file_id:
@@ -60,11 +58,8 @@ def ul_csv(df, file_id, name, folder_id):
                     f'https://www.googleapis.com/upload/drive/v3/files/{file_id}',
                     headers={**headers, 'Content-Type': 'text/csv'},
                     params={'uploadType': 'media'},
-                    data=csv_bytes,
-                    timeout=30
-                )
+                    data=csv_bytes, timeout=30)
             else:
-                # Multipart upload for new file
                 boundary = 'topos_boundary'
                 meta = json.dumps({'name': name, 'parents': [folder_id]}).encode()
                 body = (
@@ -78,9 +73,7 @@ def ul_csv(df, file_id, name, folder_id):
                     'https://www.googleapis.com/upload/drive/v3/files',
                     headers={**headers, 'Content-Type': f'multipart/related; boundary={boundary}'},
                     params={'uploadType': 'multipart'},
-                    data=body,
-                    timeout=30
-                )
+                    data=body, timeout=30)
             resp.raise_for_status()
             return resp.json().get('id', file_id)
         except Exception as e:
@@ -127,7 +120,7 @@ def count_true(s): return int(s.apply(is_true).sum())
 
 def init_state():
     for k, v in {
-        'logged_in':False,'annotator_id':None,'service':None,
+        'initialized':False,'service':None,
         'assignments_df':None,'my_patches':None,'csv_file_id':None,
         'csv_filename':None,'feature_idx':0,'review_mode':None,
         'review_idx':0,'review_patches':None,'patch_start':None,
@@ -194,152 +187,149 @@ def upd(mp, pid, label, elapsed, is_review=False, orig=None):
         mp.at[idx,'final_label'] = label
     return mp
 
-def skip_patch(mp, pid, elapsed):
+def skip_p(mp, pid, elapsed):
     idx = mp[mp['patch_id']==pid].index[0]
     mp.at[idx,'was_skipped']='True'; mp.at[idx,'was_flagged']='False'
     if elapsed: mp.at[idx,'time_seconds']=str(elapsed)
     return mp
 
-# ── LOGIN ──
-if not st.session_state['logged_in']:
-    st.title("🗺️ TopoS Annotation System"); st.divider(); st.subheader("🔐 Please log in")
-    aid_in = st.text_input("Annotator ID", placeholder="e.g. 001", max_chars=3)
-    pw_in  = st.text_input("Password", type="password")
-    if st.button("Login →", type="primary"):
-        with st.spinner("Connecting..."):
-            try:
-                svc = get_drive_service()
-                cid = find_file(svc, 'annotator_credentials.csv', FOLDER_ID)
-                if not cid: st.error("credentials file not found"); st.stop()
-                cdf = dl_csv(svc, cid)
-                aid = aid_in.strip().zfill(3)
-                if cdf[(cdf['annotator_id']==aid)&(cdf['password']==pw_in.strip())].empty:
-                    st.error("❌ Invalid ID or password."); st.stop()
-                asid = find_file(svc, 'patch_assignments.csv', FOLDER_ID)
-                adf  = dl_csv(svc, asid)
-                adf['annotator_id'] = adf['annotator_id'].astype(str).str.zfill(3)
-                r = svc.files().list(
-                    q=f"name='annotations' and '{FOLDER_ID}' in parents and trashed=false and mimeType='application/vnd.google-apps.folder'",
-                    fields="files(id)").execute()
-                af = r.get('files',[])
-                if af:
-                    ann_fid = af[0]['id']
-                else:
-                    ann_fid = svc.files().create(
-                        body={'name':'annotations','mimeType':'application/vnd.google-apps.folder','parents':[FOLDER_ID]},
-                        fields='id').execute()['id']
-                pr = svc.files().list(
-                    q=f"name='patches' and '{FOLDER_ID}' in parents and trashed=false and mimeType='application/vnd.google-apps.folder'",
-                    fields="files(id)").execute()
-                pf = pr.get('files',[])
-                pfid = pf[0]['id'] if pf else PATCHES_FOLDER_ID
-                pi = load_patch_index(svc, pfid)
-                mp, fid, fname = load_feature(svc, aid, 0, adf, ann_fid)
-                st.session_state.update({
-                    'logged_in':True,'annotator_id':aid,'service':svc,
-                    'assignments_df':adf,'my_patches':mp,'csv_file_id':fid,'csv_filename':fname,
-                    'feature_idx':0,'review_mode':None,'review_idx':0,'review_patches':None,
-                    'patch_start':time.time(),'patch_index':pi,
-                    'annotations_folder_id':ann_fid,'patches_folder_id':pfid,
-                })
-                st.rerun()
-            except Exception as e:
-                st.error(f"Error: {e}")
+# ── AUTO INIT ──
+ss = st.session_state
+if not ss['initialized']:
+    with st.spinner("Loading..."):
+        try:
+            svc = get_drive_service()
+            asid = find_file(svc, 'patch_assignments.csv', FOLDER_ID)
+            adf  = dl_csv(svc, asid)
+            adf['annotator_id'] = adf['annotator_id'].astype(str).str.zfill(3)
+
+            r = svc.files().list(
+                q=f"name='annotations' and '{FOLDER_ID}' in parents and trashed=false and mimeType='application/vnd.google-apps.folder'",
+                fields="files(id)").execute()
+            af = r.get('files',[])
+            if af:
+                ann_fid = af[0]['id']
+            else:
+                ann_fid = svc.files().create(
+                    body={'name':'annotations','mimeType':'application/vnd.google-apps.folder','parents':[FOLDER_ID]},
+                    fields='id').execute()['id']
+
+            pr = svc.files().list(
+                q=f"name='patches' and '{FOLDER_ID}' in parents and trashed=false and mimeType='application/vnd.google-apps.folder'",
+                fields="files(id)").execute()
+            pf = pr.get('files',[])
+            pfid = pf[0]['id'] if pf else PATCHES_FOLDER_ID
+            pi = load_patch_index(svc, pfid)
+            mp, fid, fname = load_feature(svc, ANNOTATOR_ID, 0, adf, ann_fid)
+
+            ss.update({
+                'initialized':True,'service':svc,
+                'assignments_df':adf,'my_patches':mp,'csv_file_id':fid,'csv_filename':fname,
+                'feature_idx':0,'review_mode':None,'review_idx':0,'review_patches':None,
+                'patch_start':time.time(),'patch_index':pi,
+                'annotations_folder_id':ann_fid,'patches_folder_id':pfid,
+            })
+            st.rerun()
+        except Exception as e:
+            st.error(f"Error loading: {e}")
+            st.stop()
 
 # ── ANNOTATION ──
-else:
-    ss=st.session_state; svc=ss['service']; aid=ss['annotator_id']
-    feature=FEATURES[ss['feature_idx']]; mp=ss['my_patches']; c=get_counts(mp)
-    st.markdown(
-        f"**👤 {aid}** | **📋 {feature}** | **📊 {c['done']+1}/{c['total']}**"
-        f"&nbsp;&nbsp; ✅**{c['present']}** ❌**{c['absent']}** ⏭**{c['skipped']}** 🚩**{c['flagged']}**"
-    )
-    st.divider()
+svc=ss['service']; feature=FEATURES[ss['feature_idx']]; mp=ss['my_patches']; c=get_counts(mp)
 
-    def elapsed(): return round(time.time()-ss['patch_start'],1) if ss['patch_start'] else None
-    def save(): save_all(ss['my_patches'],ss['csv_file_id'],ss['csv_filename'],ss['annotations_folder_id'])
+st.markdown(
+    f"**👤 Annotator {ANNOTATOR_ID}** | **📋 {feature}** | **📊 {c['done']+1}/{c['total']}**"
+    f"&nbsp;&nbsp; ✅**{c['present']}** ❌**{c['absent']}** ⏭**{c['skipped']}** 🚩**{c['flagged']}**"
+)
+st.divider()
 
-    def adv_feat():
-        ni=ss['feature_idx']+1
-        mp2,fid,fn=load_feature(svc,aid,ni,ss['assignments_df'],ss['annotations_folder_id'])
-        ss.update({'feature_idx':ni,'review_mode':None,'my_patches':mp2,
-                   'csv_file_id':fid,'csv_filename':fn,'patch_start':time.time()})
+def elapsed(): return round(time.time()-ss['patch_start'],1) if ss['patch_start'] else None
+def save(): save_all(ss['my_patches'],ss['csv_file_id'],ss['csv_filename'],ss['annotations_folder_id'])
+
+def adv_feat():
+    ni=ss['feature_idx']+1
+    mp2,fid,fn=load_feature(svc,ANNOTATOR_ID,ni,ss['assignments_df'],ss['annotations_folder_id'])
+    ss.update({'feature_idx':ni,'review_mode':None,'my_patches':mp2,
+               'csv_file_id':fid,'csv_filename':fn,'patch_start':time.time()})
+    st.rerun()
+
+def enter_rev(rt):
+    ps = ss['my_patches'][ss['my_patches']['label'].isna()] if rt=='skipped' \
+         else ss['my_patches'][ss['my_patches']['was_flagged'].apply(is_true)]
+    if len(ps)>0:
+        ss['review_mode']=rt; ss['review_idx']=0
+        ss['review_patches']=ps.reset_index(drop=True); ss['patch_start']=time.time()
         st.rerun()
+    else: nxt_rev(rt)
 
-    def enter_rev(rt):
-        ps = ss['my_patches'][ss['my_patches']['label'].isna()] if rt=='skipped' \
-             else ss['my_patches'][ss['my_patches']['was_flagged'].apply(is_true)]
-        if len(ps)>0:
-            ss['review_mode']=rt; ss['review_idx']=0
-            ss['review_patches']=ps.reset_index(drop=True); ss['patch_start']=time.time()
-            st.rerun()
-        else: nxt_rev(rt)
+def nxt_rev(cur):
+    if cur=='skipped': enter_rev('flagged')
+    elif ss['feature_idx']<len(FEATURES)-1: adv_feat()
+    else:
+        st.balloons()
+        st.success("🎉 All done! Thank you for your annotations.")
+        st.stop()
 
-    def nxt_rev(cur):
-        if cur=='skipped': enter_rev('flagged')
-        elif ss['feature_idx']<len(FEATURES)-1: adv_feat()
-        else: ss['logged_in']=False; st.rerun()
+def show_img(pid):
+    if pid not in ss['patch_index']:
+        st.warning("⚠️ Image not uploaded yet — you can still label below.")
+        return
+    try:
+        img = dl_img(svc, ss['patch_index'][pid])
+        st.image(img, width=380)
+    except Exception:
+        st.warning("⚠️ Image not available — you can still label below.")
 
-    def show_img(pid):
-        if pid not in ss['patch_index']:
-            st.warning("⚠️ Image not uploaded yet — you can still label below.")
-            return
-        try:
-            img = dl_img(svc, ss['patch_index'][pid])
-            st.image(img, width=380)
-        except Exception:
-            st.warning("⚠️ Image not available — you can still label below.")
-
-    if ss['review_mode'] is not None:
-        rt=ss['review_mode']; ps=ss['review_patches']; idx=ss['review_idx']
-        if idx>=len(ps): nxt_rev(rt); st.stop()
-        row=ps.iloc[idx]; pid=row['patch_id']
-        st.markdown(f"#### {'⏭' if rt=='skipped' else '🚩'} Reviewing {rt} — {idx+1}/{len(ps)}")
-        if rt=='flagged':
-            orig=str(row.get('original_label',''))
-            if orig not in ('nan','<NA>','','None'): st.info(f"🏷️ Original: **{orig}**")
-        show_img(pid); st.divider()
-        c1,c2=st.columns(2)
+if ss['review_mode'] is not None:
+    rt=ss['review_mode']; ps=ss['review_patches']; idx=ss['review_idx']
+    if idx>=len(ps): nxt_rev(rt); st.stop()
+    row=ps.iloc[idx]; pid=row['patch_id']
+    st.markdown(f"#### {'⏭' if rt=='skipped' else '🚩'} Reviewing {rt} — {idx+1}/{len(ps)}")
+    if rt=='flagged':
+        orig=str(row.get('original_label',''))
+        if orig not in ('nan','<NA>','','None'): st.info(f"🏷️ Original: **{orig}**")
+    show_img(pid); st.divider()
+    c1,c2=st.columns(2)
+    with c1:
+        if st.button("✅ Present", type="primary", use_container_width=True):
+            ss['my_patches']=upd(ss['my_patches'],pid,'present',elapsed(),is_review=True)
+            save(); ss['review_idx']+=1; ss['patch_start']=time.time(); st.rerun()
+    with c2:
+        if st.button("❌ Absent", type="secondary", use_container_width=True):
+            ss['my_patches']=upd(ss['my_patches'],pid,'absent',elapsed(),is_review=True)
+            save(); ss['review_idx']+=1; ss['patch_start']=time.time(); st.rerun()
+else:
+    ul=get_unlabeled(mp)
+    if len(ul)==0: enter_rev('skipped'); st.stop()
+    pid=ul.iloc[0]['patch_id']; show_img(pid); st.divider()
+    if ss['flagging']:
+        st.warning("🚩 Flag as which? Choose your best guess — marked for review.")
+        c1,c2,c3=st.columns(3)
+        with c1:
+            if st.button("🚩 Flag as Present", use_container_width=True):
+                ss['my_patches']=upd(ss['my_patches'],pid,'present',elapsed(),orig='present')
+                ss['flagging']=False; save(); ss['patch_start']=time.time(); st.rerun()
+        with c2:
+            if st.button("🚩 Flag as Absent", use_container_width=True):
+                ss['my_patches']=upd(ss['my_patches'],pid,'absent',elapsed(),orig='absent')
+                ss['flagging']=False; save(); ss['patch_start']=time.time(); st.rerun()
+        with c3:
+            if st.button("Cancel", use_container_width=True):
+                ss['flagging']=False; st.rerun()
+    else:
+        c1,c2,c3,c4=st.columns(4)
         with c1:
             if st.button("✅ Present", type="primary", use_container_width=True):
-                ss['my_patches']=upd(ss['my_patches'],pid,'present',elapsed(),is_review=True)
-                save(); ss['review_idx']+=1; ss['patch_start']=time.time(); st.rerun()
+                ss['my_patches']=upd(ss['my_patches'],pid,'present',elapsed())
+                save(); ss['patch_start']=time.time(); st.rerun()
         with c2:
             if st.button("❌ Absent", type="secondary", use_container_width=True):
-                ss['my_patches']=upd(ss['my_patches'],pid,'absent',elapsed(),is_review=True)
-                save(); ss['review_idx']+=1; ss['patch_start']=time.time(); st.rerun()
-    else:
-        ul=get_unlabeled(mp)
-        if len(ul)==0: enter_rev('skipped'); st.stop()
-        pid=ul.iloc[0]['patch_id']; show_img(pid); st.divider()
-        if ss['flagging']:
-            st.warning("🚩 Flag as which? Choose your best guess.")
-            c1,c2,c3=st.columns(3)
-            with c1:
-                if st.button("🚩 Flag as Present", use_container_width=True):
-                    ss['my_patches']=upd(ss['my_patches'],pid,'present',elapsed(),orig='present')
-                    ss['flagging']=False; save(); ss['patch_start']=time.time(); st.rerun()
-            with c2:
-                if st.button("🚩 Flag as Absent", use_container_width=True):
-                    ss['my_patches']=upd(ss['my_patches'],pid,'absent',elapsed(),orig='absent')
-                    ss['flagging']=False; save(); ss['patch_start']=time.time(); st.rerun()
-            with c3:
-                if st.button("Cancel", use_container_width=True):
-                    ss['flagging']=False; st.rerun()
-        else:
-            c1,c2,c3,c4=st.columns(4)
-            with c1:
-                if st.button("✅ Present", type="primary", use_container_width=True):
-                    ss['my_patches']=upd(ss['my_patches'],pid,'present',elapsed())
-                    save(); ss['patch_start']=time.time(); st.rerun()
-            with c2:
-                if st.button("❌ Absent", type="secondary", use_container_width=True):
-                    ss['my_patches']=upd(ss['my_patches'],pid,'absent',elapsed())
-                    save(); ss['patch_start']=time.time(); st.rerun()
-            with c3:
-                if st.button("⏭ Skip", use_container_width=True):
-                    ss['my_patches']=skip_patch(ss['my_patches'],pid,elapsed())
-                    save(); ss['patch_start']=time.time(); st.rerun()
-            with c4:
-                if st.button("🚩 Flag", use_container_width=True):
-                    ss['flagging']=True; st.rerun()
+                ss['my_patches']=upd(ss['my_patches'],pid,'absent',elapsed())
+                save(); ss['patch_start']=time.time(); st.rerun()
+        with c3:
+            if st.button("⏭ Skip", use_container_width=True):
+                ss['my_patches']=skip_p(ss['my_patches'],pid,elapsed())
+                save(); ss['patch_start']=time.time(); st.rerun()
+        with c4:
+            if st.button("🚩 Flag", use_container_width=True):
+                ss['flagging']=True; st.rerun()
