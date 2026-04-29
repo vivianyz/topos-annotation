@@ -7,7 +7,14 @@ from google.auth.transport.requests import Request
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseDownload
 
-st.set_page_config(page_title="TopoS Annotation", page_icon="🗺️", layout="centered")
+st.set_page_config(page_title="TopoS Annotation", page_icon="🗺️", layout="wide")
+
+st.markdown("""
+<style>
+[data-testid="collapsedControl"] { display: none }
+[data-testid="stSidebar"] { min-width: 320px; max-width: 320px; }
+</style>
+""", unsafe_allow_html=True)
 SCOPES = ['https://www.googleapis.com/auth/drive']
 FOLDER_ID = st.secrets["TOPOS_FOLDER_ID"]
 PATCHES_FOLDER_ID = st.secrets["PATCHES_FOLDER_ID"]
@@ -229,6 +236,11 @@ if not ss['initialized']:
 # ── ANNOTATION ──
 svc=ss['service']; feature=FEATURES[ss['feature_idx']]
 
+# Page header
+st.markdown("## 🗺️ Welcome to Project Imperiia — TopoS")
+st.markdown("You are helping digitize the **Military-Topographic Survey of European Russia (MTSER)**, a 19th-century map series.")
+st.divider()
+
 # Always get fresh data from session state
 mp=ss['my_patches']; c=get_counts(ss['my_patches'])
 in_review = ss['review_mode'] is not None
@@ -323,12 +335,10 @@ def load_sample_img(_svc, feature, folder_id):
         return None
 
 def show_img(pid):
-    # Sidebar: welcome + sample + instructions
     with st.sidebar:
-        st.markdown("## 🗺️ Welcome to Project Imperiia — TopoS")
-        st.markdown("You are helping digitize the **Military-Topographic Survey of European Russia (MTSER)**, a 19th-century map series.")
+        st.markdown("## 📖 Annotation Guide")
+        st.markdown(f"Your task is to identify **{feature.replace('_', ' ')}** in each map patch. Below is a sample reference image to guide your judgment.")
         st.divider()
-        st.caption(f"📖 Sample reference — {feature}")
         sample = load_sample_img(svc, feature, FOLDER_ID)
         if sample:
             st.image(sample, use_container_width=True)
@@ -336,7 +346,7 @@ def show_img(pid):
             st.info("Sample image coming soon.")
         st.divider()
         st.markdown("""
-**For each patch, decide if the target feature is present:**
+**For each patch:**
 
 - ✅ **Present** — The feature is visible in this patch
 - ❌ **Absent** — The feature is not visible
