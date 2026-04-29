@@ -293,7 +293,17 @@ if ss['review_mode'] is not None:
     rt=ss['review_mode']; ps=ss['review_patches']; idx=ss['review_idx']
     if idx>=len(ps): nxt_rev(rt); st.stop()
     row=ps.iloc[idx]; pid=row['patch_id']
-    st.markdown(f"#### {'⏭' if rt=='skipped' else '🚩'} Reviewing {rt} — {idx+1}/{ss.get('review_total', len(ps))}")
+
+    # Compute header counts
+    if rt=='skipped':
+        n_total   = int(mp['was_skipped'].apply(is_true).sum())
+        n_labeled = int((mp['was_skipped'].apply(is_true) & mp['label'].isin(['present','absent'])).sum())
+        header = f"⏭ Review {n_labeled}/{n_total} skipped patches"
+    else:
+        n_total   = int(mp['was_flagged'].apply(is_true).sum())
+        n_labeled = int((mp['was_flagged'].apply(is_true) & mp['label'].isin(['present','absent'])).sum())
+        header = f"🚩 Review {n_labeled}/{n_total} flagged patches"
+    st.markdown(f"#### {header}")
     if rt=='flagged':
         orig=str(row.get('original_label',''))
         if orig not in ('nan','<NA>','','None'): st.info(f"🏷️ Original: **{orig}**")
