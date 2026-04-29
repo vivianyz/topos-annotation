@@ -285,13 +285,6 @@ def nxt_rev(cur):
         st.success("🎉 All done! Thank you for your annotations.")
         st.stop()
 
-SAMPLE_IDS = {
-    'Feature_1': None,
-    'Feature_2': None,
-    'Feature_3': None,
-    'Feature_4': None,
-}  # Replace None with Google Drive file IDs once Kelly uploads samples
-
 INSTRUCTIONS = """
 **Welcome to Project Imperiia — TopoS**
 
@@ -318,8 +311,10 @@ You are helping digitize the Military-Topographic Survey of European Russia (MTS
 """
 
 @st.cache_data(ttl=3600)
-def load_sample_img(_svc, feature):
-    fid = SAMPLE_IDS.get(feature)
+def load_sample_img(_svc, feature, folder_id):
+    fidx = FEATURES.index(feature) + 1
+    fname = f'sample_{fidx}.png'
+    fid = find_file(_svc, fname, folder_id)
     if not fid:
         return None
     try:
@@ -331,16 +326,16 @@ def show_img(pid):
     col_left, col_right = st.columns([1, 1])
 
     with col_left:
-        sample = load_sample_img(svc, feature)
+        st.markdown(INSTRUCTIONS)
+
+    with col_right:
+        sample = load_sample_img(svc, feature, FOLDER_ID)
         if sample:
             st.caption("📖 Sample reference")
             st.image(sample, width=300)
         else:
             st.caption("📖 Sample reference")
             st.info("Sample image coming soon.")
-        st.markdown(INSTRUCTIONS)
-
-    with col_right:
         st.caption("🗺️ Patch to label")
         if pid not in ss['patch_index']:
             st.warning("⚠️ Image not uploaded yet — you can still label below.")
