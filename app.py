@@ -111,7 +111,7 @@ def init_state():
         'assignments_df':None,'my_patches':None,'csv_file_id':None,
         'csv_filename':None,'feature_idx':0,'review_mode':None,
         'review_idx':0,'review_patches':None,'patch_start':None,
-        'flagging':False,'patch_index':None,
+        'flagging':False,'patch_index':None,'saving':False,
         'annotations_folder_id':None,'patches_folder_id':None,
     }.items():
         if k not in st.session_state: st.session_state[k] = v
@@ -234,8 +234,10 @@ st.divider()
 
 def elapsed(): return round(time.time()-ss['patch_start'],1) if ss['patch_start'] else None
 def save():
+    ss['saving'] = True
     with st.spinner("💾 Saving..."):
         save_all(ss['my_patches'],ss['csv_file_id'],ss['csv_filename'],ss['annotations_folder_id'])
+    ss['saving'] = False
 
 def adv_feat():
     ni=ss['feature_idx']+1
@@ -282,11 +284,11 @@ if ss['review_mode'] is not None:
     show_img(pid); st.divider()
     c1,c2=st.columns(2)
     with c1:
-        if st.button("✅ Present", type="primary", use_container_width=True):
+        if st.button("✅ Present", type="primary", use_container_width=True, disabled=ss["saving"]):
             ss['my_patches']=upd(ss['my_patches'],pid,'present',elapsed(),is_review=True)
             save(); ss['review_idx']+=1; ss['patch_start']=time.time(); st.rerun()
     with c2:
-        if st.button("❌ Absent", type="secondary", use_container_width=True):
+        if st.button("❌ Absent", type="secondary", use_container_width=True, disabled=ss["saving"]):
             ss['my_patches']=upd(ss['my_patches'],pid,'absent',elapsed(),is_review=True)
             save(); ss['review_idx']+=1; ss['patch_start']=time.time(); st.rerun()
 else:
@@ -297,11 +299,11 @@ else:
         st.warning("🚩 Flag as which? Choose your best guess — marked for review.")
         c1,c2,c3=st.columns(3)
         with c1:
-            if st.button("🚩 Flag as Present", use_container_width=True):
+            if st.button("🚩 Flag as Present", use_container_width=True, disabled=ss["saving"]):
                 ss['my_patches']=upd(ss['my_patches'],pid,'present',elapsed(),orig='present')
                 ss['flagging']=False; save(); ss['patch_start']=time.time(); st.rerun()
         with c2:
-            if st.button("🚩 Flag as Absent", use_container_width=True):
+            if st.button("🚩 Flag as Absent", use_container_width=True, disabled=ss["saving"]):
                 ss['my_patches']=upd(ss['my_patches'],pid,'absent',elapsed(),orig='absent')
                 ss['flagging']=False; save(); ss['patch_start']=time.time(); st.rerun()
         with c3:
@@ -310,17 +312,17 @@ else:
     else:
         c1,c2,c3,c4=st.columns(4)
         with c1:
-            if st.button("✅ Present", type="primary", use_container_width=True):
+            if st.button("✅ Present", type="primary", use_container_width=True, disabled=ss["saving"]):
                 ss['my_patches']=upd(ss['my_patches'],pid,'present',elapsed())
                 save(); ss['patch_start']=time.time(); st.rerun()
         with c2:
-            if st.button("❌ Absent", type="secondary", use_container_width=True):
+            if st.button("❌ Absent", type="secondary", use_container_width=True, disabled=ss["saving"]):
                 ss['my_patches']=upd(ss['my_patches'],pid,'absent',elapsed())
                 save(); ss['patch_start']=time.time(); st.rerun()
         with c3:
-            if st.button("⏭ Skip", use_container_width=True):
+            if st.button("⏭ Skip", use_container_width=True, disabled=ss["saving"]):
                 ss['my_patches']=skip_p(ss['my_patches'],pid,elapsed())
                 save(); ss['patch_start']=time.time(); st.rerun()
         with c4:
-            if st.button("🚩 Flag", use_container_width=True):
+            if st.button("🚩 Flag", use_container_width=True, disabled=ss["saving"]):
                 ss['flagging']=True; st.rerun()
