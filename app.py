@@ -232,7 +232,7 @@ svc=ss['service']; feature=FEATURES[ss['feature_idx']]
 # Always get fresh data from session state
 mp=ss['my_patches']; c=get_counts(ss['my_patches'])
 in_review = ss['review_mode'] is not None
-progress = f"{c['done']}/{c['total']}" if in_review else f"{c['done']+1}/{c['total']}"
+progress = f"{c['done']}/{c['total']}"
 
 st.markdown(
     f"**👤 Annotator {ANNOTATOR_ID}** | **📋 {feature}** | **📊 {progress}**"
