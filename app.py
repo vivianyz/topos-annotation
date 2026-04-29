@@ -12,7 +12,8 @@ st.set_page_config(page_title="TopoS Annotation", page_icon="🗺️", layout="w
 st.markdown("""
 <style>
 [data-testid="collapsedControl"] { display: none }
-[data-testid="stSidebar"] { min-width: 320px; max-width: 320px; }
+[data-testid="stSidebar"] { min-width: 380px; max-width: 380px; }
+[data-testid="stSidebarContent"] { padding: 1rem; }
 </style>
 """, unsafe_allow_html=True)
 SCOPES = ['https://www.googleapis.com/auth/drive']
@@ -362,7 +363,7 @@ def show_img(pid):
         return
     try:
         img = dl_img(svc, ss['patch_index'][pid])
-        st.image(img, width=300)
+        st.image(img, width=480)
     except Exception:
         st.warning("⚠️ Image not available — you can still label below.")
 
