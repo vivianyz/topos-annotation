@@ -41,14 +41,21 @@ def ul_csv(svc, df, file_id, name, folder_id):
     else:
         svc.files().create(body={'name': name, 'parents': [folder_id]}, media_body=media).execute()
 
-def dl_img(svc, file_id):
-    req = svc.files().get_media(fileId=file_id)
-    buf = io.BytesIO()
-    dl = MediaIoBaseDownload(buf, req)
-    done = False
-    while not done: _, done = dl.next_chunk()
-    buf.seek(0)
-    return Image.open(buf)
+def dl_img(svc, file_id, retries=3):
+    for attempt in range(retries):
+        try:
+            req = svc.files().get_media(fileId=file_id)
+            buf = io.BytesIO()
+            dl = MediaIoBaseDownload(buf, req)
+            done = False
+            while not done: _, done = dl.next_chunk()
+            buf.seek(0)
+            return Image.open(buf)
+        except Exception as e:
+            if attempt < retries - 1:
+                time.sleep(1)
+            else:
+                raise e
 
 @st.cache_data(ttl=300)
 def load_patch_index(_svc, pfid):
@@ -188,9 +195,13 @@ else:
         else: ss['logged_in']=False; st.rerun()
 
     def show_img(pid):
-        if pid not in ss['patch_index']: st.warning(f"Patch not found: {pid}"); return
-        try: st.image(dl_img(svc, ss['patch_index'][pid]), use_container_width=True)
-        except Exception as e: st.error(f"Image error: {e}")
+        if pid not in ss['patch_index']:
+            st.warning(f"Patch not found: {pid} — you can still label below.")
+            return
+        try:
+            st.image(dl_img(svc, ss['patch_index'][pid]), use_container_width=True)
+        except Exception as e:
+            st.warning("⚠️ Image not available yet — you can still label or skip below.")
 
     if ss['review_mode'] is not None:
         rt=ss['review_mode']; ps=ss['review_patches']; idx=ss['review_idx']
