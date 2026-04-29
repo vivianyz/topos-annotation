@@ -48,39 +48,26 @@ def dl_csv(svc, file_id):
     return pd.read_csv(buf, dtype=str, engine='python')
 
 def ul_csv(df, file_id, name, folder_id):
-    token = get_token()
-    headers = {'Authorization': f'Bearer {token}'}
-    csv_bytes = df.to_csv(index=False).encode('utf-8')
+    from googleapiclient.http import MediaIoBaseUpload as MU
+    svc = get_drive_service()
     for attempt in range(3):
         try:
+            buf = io.BytesIO(df.to_csv(index=False).encode('utf-8'))
+            media = MU(buf, mimetype='text/csv', resumable=False)
             if file_id:
-                resp = req.patch(
-                    f'https://www.googleapis.com/upload/drive/v3/files/{file_id}',
-                    headers={**headers, 'Content-Type': 'text/csv'},
-                    params={'uploadType': 'media'},
-                    data=csv_bytes, timeout=30)
+                svc.files().update(fileId=file_id, media_body=media).execute()
+                return file_id
             else:
-                boundary = 'topos_boundary'
-                meta = json.dumps({'name': name, 'parents': [folder_id]}).encode()
-                body = (
-                    f'--{boundary}\r\nContent-Type: application/json\r\n\r\n'.encode()
-                    + meta
-                    + f'\r\n--{boundary}\r\nContent-Type: text/csv\r\n\r\n'.encode()
-                    + csv_bytes
-                    + f'\r\n--{boundary}--'.encode()
-                )
-                resp = req.post(
-                    'https://www.googleapis.com/upload/drive/v3/files',
-                    headers={**headers, 'Content-Type': f'multipart/related; boundary={boundary}'},
-                    params={'uploadType': 'multipart'},
-                    data=body, timeout=30)
-            resp.raise_for_status()
-            return resp.json().get('id', file_id)
+                f = svc.files().create(
+                    body={'name': name, 'parents': [folder_id]},
+                    media_body=media, fields='id'
+                ).execute()
+                return f['id']
         except Exception as e:
             if attempt < 2:
-                time.sleep(1)
+                time.sleep(2)
             else:
-                st.warning(f"⚠️ Auto-save failed (will retry next click): {e}")
+                st.warning(f"⚠️ Auto-save failed: {e}")
                 return file_id
 
 def dl_img(svc, file_id):
