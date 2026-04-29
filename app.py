@@ -201,7 +201,7 @@ else:
             st.warning(f"Patch not found: {pid} — you can still label below.")
             return
         try:
-            st.image(dl_img(svc, ss['patch_index'][pid]), width='stretch')
+            st.image(dl_img(svc, ss['patch_index'][pid]), width=350)
         except Exception as e:
             st.warning("⚠️ Image not available yet — you can still label or skip below.")
 
