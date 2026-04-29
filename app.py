@@ -11,9 +11,14 @@ st.set_page_config(page_title="TopoS Annotation", page_icon="🗺️", layout="w
 
 st.markdown("""
 <style>
-[data-testid="collapsedControl"] { display: none }
-[data-testid="stSidebar"] { min-width: 380px; max-width: 380px; }
+[data-testid="collapsedControl"] { display: none !important; }
+[data-testid="stSidebar"] { 
+    min-width: 380px !important; 
+    max-width: 380px !important;
+    transform: none !important;
+}
 [data-testid="stSidebarContent"] { padding: 1rem; }
+section[data-testid="stSidebar"] > div { width: 380px !important; }
 </style>
 """, unsafe_allow_html=True)
 SCOPES = ['https://www.googleapis.com/auth/drive']
