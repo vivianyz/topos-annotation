@@ -237,9 +237,7 @@ if not ss['initialized']:
 svc=ss['service']; feature=FEATURES[ss['feature_idx']]
 
 # Page header
-st.markdown("## 🗺️ Welcome to Project Imperiia — TopoS")
-st.markdown("You are helping digitize the **Military-Topographic Survey of European Russia (MTSER)**, a 19th-century map series.")
-st.divider()
+st.markdown("#### 🗺️ Welcome to Project Imperiia — TopoS &nbsp; <small style='font-weight:normal;'>— You are helping digitize the Military-Topographic Survey of European Russia (MTSER), a 19th-century map series.</small>", unsafe_allow_html=True)
 
 # Always get fresh data from session state
 mp=ss['my_patches']; c=get_counts(ss['my_patches'])
@@ -250,7 +248,6 @@ st.markdown(
     f"**👤 Annotator {ANNOTATOR_ID}** | **📋 {feature}** | **📊 {progress}**"
     f"&nbsp;&nbsp; ✅**{c['present']}** ❌**{c['absent']}** ⏭**{c['skipped']}** 🚩**{c['flagged']}**"
 )
-st.divider()
 
 def elapsed(): return round(time.time()-ss['patch_start'],1) if ss['patch_start'] else None
 def save():
@@ -365,7 +362,7 @@ def show_img(pid):
         return
     try:
         img = dl_img(svc, ss['patch_index'][pid])
-        st.image(img, width=420)
+        st.image(img, width=300)
     except Exception:
         st.warning("⚠️ Image not available — you can still label below.")
 
@@ -390,7 +387,7 @@ if ss['review_mode'] is not None:
     if rt=='flagged':
         orig=str(row.get('original_label',''))
         if orig not in ('nan','<NA>','','None'): st.info(f"🏷️ Original: **{orig}**")
-    show_img(pid); st.divider()
+    show_img(pid)
     c1,c2=st.columns(2)
     with c1:
         if st.button("✅ Present", type="primary", use_container_width=True, disabled=ss["saving"]):
@@ -405,7 +402,7 @@ if ss['review_mode'] is not None:
 else:
     ul=get_unlabeled(ss['my_patches'])
     if len(ul)==0: enter_rev('skipped'); st.stop()
-    pid=ul.iloc[0]['patch_id']; show_img(pid); st.divider()
+    pid=ul.iloc[0]['patch_id']; show_img(pid)
     if ss.get('saving', False):
         st.info("💾 Saving... please wait.")
     elif ss['flagging']:
