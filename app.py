@@ -285,15 +285,71 @@ def nxt_rev(cur):
         st.success("🎉 All done! Thank you for your annotations.")
         st.stop()
 
-def show_img(pid):
-    if pid not in ss['patch_index']:
-        st.warning("⚠️ Image not uploaded yet — you can still label below.")
-        return
+SAMPLE_IDS = {
+    'Feature_1': None,
+    'Feature_2': None,
+    'Feature_3': None,
+    'Feature_4': None,
+}  # Replace None with Google Drive file IDs once Kelly uploads samples
+
+INSTRUCTIONS = """
+**Welcome to Project Imperiia — TopoS**
+
+You are helping digitize the Military-Topographic Survey of European Russia (MTSER), a 19th-century map series.
+
+---
+
+**Your task:** For each map patch, decide whether the target feature is present.
+
+---
+
+**Buttons:**
+- ✅ **Present** — The feature is clearly visible in this patch
+- ❌ **Absent** — The feature is not visible
+- ⏭ **Skip** — You are unsure. You will review skipped patches at the end of each feature round
+- 🚩 **Flag** — Make your best guess (Present or Absent) but mark it for review. Use this when you are uncertain but want to keep going
+
+---
+
+**Tips:**
+- A feature counts as Present even if only partially visible
+- When in doubt between Skip and Flag, use Flag — it records your best guess
+- Your progress saves automatically after every click
+"""
+
+@st.cache_data(ttl=3600)
+def load_sample_img(_svc, feature):
+    fid = SAMPLE_IDS.get(feature)
+    if not fid:
+        return None
     try:
-        img = dl_img(svc, ss['patch_index'][pid])
-        st.image(img, width=380)
+        return dl_img(_svc, fid)
     except Exception:
-        st.warning("⚠️ Image not available — you can still label below.")
+        return None
+
+def show_img(pid):
+    col_left, col_right = st.columns([1, 1])
+
+    with col_left:
+        sample = load_sample_img(svc, feature)
+        if sample:
+            st.caption("📖 Sample reference")
+            st.image(sample, width=300)
+        else:
+            st.caption("📖 Sample reference")
+            st.info("Sample image coming soon.")
+        st.markdown(INSTRUCTIONS)
+
+    with col_right:
+        st.caption("🗺️ Patch to label")
+        if pid not in ss['patch_index']:
+            st.warning("⚠️ Image not uploaded yet — you can still label below.")
+            return
+        try:
+            img = dl_img(svc, ss['patch_index'][pid])
+            st.image(img, width=350)
+        except Exception:
+            st.warning("⚠️ Image not available — you can still label below.")
 
 if ss['review_mode'] is not None:
     rt=ss['review_mode']; ps=ss['review_patches']; idx=ss['review_idx']
