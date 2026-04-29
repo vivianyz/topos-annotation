@@ -127,7 +127,7 @@ def get_counts(mp):
         'flagged':count_true(mp['was_flagged']),
     }
 
-def get_unlabeled(mp): return mp[mp['label'].isna()].reset_index(drop=True)
+def get_unlabeled(mp): return mp[mp['label'].isna() | (mp['label'] == '')].reset_index(drop=True)
 
 def load_feature(svc, aid, fidx, adf, ann_fid):
     feature = FEATURES[fidx]
@@ -176,7 +176,9 @@ def upd(mp, pid, label, elapsed, is_review=False, orig=None):
 
 def skip_p(mp, pid, elapsed):
     idx = mp[mp['patch_id']==pid].index[0]
-    mp.at[idx,'was_skipped']='True'; mp.at[idx,'was_flagged']='False'
+    mp.at[idx,'was_skipped']='True'
+    mp.at[idx,'was_flagged']='False'
+    mp.at[idx,'label']='skipped'  # mark as skipped so it's excluded from unlabeled
     if elapsed: mp.at[idx,'time_seconds']=str(elapsed)
     return mp
 
@@ -243,7 +245,7 @@ def adv_feat():
     st.rerun()
 
 def enter_rev(rt):
-    ps = ss['my_patches'][ss['my_patches']['label'].isna()] if rt=='skipped' \
+    ps = ss['my_patches'][ss['my_patches']['was_skipped'].apply(is_true)] if rt=='skipped' \
          else ss['my_patches'][ss['my_patches']['was_flagged'].apply(is_true)]
     if len(ps)>0:
         ss['review_mode']=rt; ss['review_idx']=0
