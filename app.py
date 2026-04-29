@@ -125,8 +125,8 @@ def get_counts(mp):
         'done':int(labeled.sum()),
         'present':int((mp['label']=='present').sum()),
         'absent':int((mp['label']=='absent').sum()),
-        'skipped':int((mp['label']=='skipped').sum()),
-        'flagged':int((mp['was_flagged'].apply(is_true) & ~labeled).sum()),
+        'skipped':int(mp['was_skipped'].apply(is_true).sum()),
+        'flagged':int(mp['was_flagged'].apply(is_true).sum()),
     }
 
 def get_unlabeled(mp): return mp[mp['label'].isna() | (mp['label'] == '')].reset_index(drop=True)
@@ -265,10 +265,10 @@ def enter_rev(rt):
     if rt=='skipped':
         ps = fmp[fmp['label']=='skipped']
     else:
-        ps = fmp[
-            fmp['was_flagged'].apply(is_true) &
-            fmp['final_label'].isna()
-        ]
+        def needs_flagged_review(row):
+            fl = str(row.get('final_label', ''))
+            return is_true(row.get('was_flagged','')) and fl in ('', 'nan', 'None', '<NA>')
+        ps = fmp[fmp.apply(needs_flagged_review, axis=1)]
     if len(ps)>0:
         ss['review_mode']=rt; ss['review_idx']=0
         ss['review_patches']=ps.reset_index(drop=True)
