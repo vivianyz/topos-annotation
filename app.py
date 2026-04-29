@@ -159,6 +159,8 @@ def load_feature(service, annotator_id, feature_idx, assignments_df,
                 my_patches.loc[mask, col] = my_patches.loc[mask, sc]
                 my_patches = my_patches.drop(columns=[sc])
 
+    my_patches['was_skipped'] = my_patches['was_skipped'].astype(str).isin(['True', 'true', '1'])
+    my_patches['was_flagged'] = my_patches['was_flagged'].astype(str).isin(['True', 'true', '1'])
     return my_patches, file_id, filename
 
 def save_patches(service, my_patches, file_id, filename, annotations_folder_id):
