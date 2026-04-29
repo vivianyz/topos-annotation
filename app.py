@@ -323,28 +323,41 @@ def load_sample_img(_svc, feature, folder_id):
         return None
 
 def show_img(pid):
-    col_left, col_right = st.columns([1, 1])
-
-    with col_left:
-        st.markdown(INSTRUCTIONS)
-
-    with col_right:
+    # Sidebar: welcome + sample + instructions
+    with st.sidebar:
+        st.markdown("## 🗺️ Welcome to Project Imperiia — TopoS")
+        st.markdown("You are helping digitize the **Military-Topographic Survey of European Russia (MTSER)**, a 19th-century map series.")
+        st.divider()
+        st.caption(f"📖 Sample reference — {feature}")
         sample = load_sample_img(svc, feature, FOLDER_ID)
         if sample:
-            st.caption("📖 Sample reference")
-            st.image(sample, width=300)
+            st.image(sample, use_container_width=True)
         else:
-            st.caption("📖 Sample reference")
             st.info("Sample image coming soon.")
-        st.caption("🗺️ Patch to label")
-        if pid not in ss['patch_index']:
-            st.warning("⚠️ Image not uploaded yet — you can still label below.")
-            return
-        try:
-            img = dl_img(svc, ss['patch_index'][pid])
-            st.image(img, width=350)
-        except Exception:
-            st.warning("⚠️ Image not available — you can still label below.")
+        st.divider()
+        st.markdown("""
+**For each patch, decide if the target feature is present:**
+
+- ✅ **Present** — The feature is visible in this patch
+- ❌ **Absent** — The feature is not visible
+- ⏭ **Skip** — Unsure. You will review skipped patches at the end of each feature
+- 🚩 **Flag** — Make your best guess but mark for review
+
+**Tips:**
+- A feature counts as Present even if only partially visible
+- When in doubt between Skip and Flag, use Flag
+- Progress saves automatically after every click
+        """)
+
+    # Main: patch image
+    if pid not in ss['patch_index']:
+        st.warning("⚠️ Image not uploaded yet — you can still label below.")
+        return
+    try:
+        img = dl_img(svc, ss['patch_index'][pid])
+        st.image(img, width=420)
+    except Exception:
+        st.warning("⚠️ Image not available — you can still label below.")
 
 if ss['review_mode'] is not None:
     rt=ss['review_mode']; ps=ss['review_patches']; idx=ss['review_idx']
