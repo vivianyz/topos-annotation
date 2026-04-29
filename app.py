@@ -302,13 +302,15 @@ if ss['review_mode'] is not None:
 
     # Compute header counts from latest data
     fresh_mp = ss['my_patches']
+    def has_final_label(val):
+        return str(val) not in ('', 'nan', 'None', '<NA>')
     if rt=='skipped':
         n_total   = int(fresh_mp['was_skipped'].apply(is_true).sum())
         n_labeled = int((fresh_mp['was_skipped'].apply(is_true) & fresh_mp['label'].isin(['present','absent'])).sum())
         header = f"⏭ Review {n_labeled}/{n_total} skipped patches"
     else:
         n_total   = int(fresh_mp['was_flagged'].apply(is_true).sum())
-        n_labeled = int((fresh_mp['was_flagged'].apply(is_true) & fresh_mp['label'].isin(['present','absent'])).sum())
+        n_labeled = int((fresh_mp['was_flagged'].apply(is_true) & fresh_mp['final_label'].apply(has_final_label)).sum())
         header = f"🚩 Review {n_labeled}/{n_total} flagged patches"
     st.markdown(f"#### {header}")
     if rt=='flagged':
