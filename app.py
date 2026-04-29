@@ -25,7 +25,7 @@ SCOPES = ['https://www.googleapis.com/auth/drive']
 FOLDER_ID = st.secrets["TOPOS_FOLDER_ID"]
 PATCHES_FOLDER_ID = st.secrets["PATCHES_FOLDER_ID"]
 FEATURES = ['Feature_1', 'Feature_2', 'Feature_3', 'Feature_4']
-ANNOTATOR_ID = '000'  # hardcoded for test app
+ANNOTATOR_ID = "008"
 
 @st.cache_resource
 def get_creds():
