@@ -292,11 +292,13 @@ if ss['review_mode'] is not None:
     with c1:
         if st.button("✅ Present", type="primary", use_container_width=True, disabled=ss["saving"]):
             ss['my_patches']=upd(ss['my_patches'],pid,'present',elapsed(),is_review=True)
-            save(); ss['review_idx']+=1; ss['patch_start']=time.time(); st.rerun()
+            ss['review_idx']+=1
+            save()
     with c2:
         if st.button("❌ Absent", type="secondary", use_container_width=True, disabled=ss["saving"]):
             ss['my_patches']=upd(ss['my_patches'],pid,'absent',elapsed(),is_review=True)
-            save(); ss['review_idx']+=1; ss['patch_start']=time.time(); st.rerun()
+            ss['review_idx']+=1
+            save()
 else:
     ul=get_unlabeled(mp)
     if len(ul)==0: enter_rev('skipped'); st.stop()
