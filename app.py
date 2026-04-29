@@ -50,7 +50,9 @@ def dl_img(svc, file_id, retries=3):
             done = False
             while not done: _, done = dl.next_chunk()
             buf.seek(0)
-            return Image.open(buf)
+            img = Image.open(buf)
+            img.load()  # force load into memory before BytesIO is GC'd
+            return img
         except Exception as e:
             if attempt < retries - 1:
                 time.sleep(1)
@@ -199,7 +201,7 @@ else:
             st.warning(f"Patch not found: {pid} — you can still label below.")
             return
         try:
-            st.image(dl_img(svc, ss['patch_index'][pid]), use_container_width=True)
+            st.image(dl_img(svc, ss['patch_index'][pid]), width='stretch')
         except Exception as e:
             st.warning("⚠️ Image not available yet — you can still label or skip below.")
 
@@ -214,10 +216,10 @@ else:
         show_img(pid); st.divider()
         c1,c2=st.columns(2)
         with c1:
-            if st.button("✅ Present",type="primary",use_container_width=True):
+            if st.button("✅ Present",type="primary",width='stretch'):
                 ss['my_patches']=upd(ss['my_patches'],pid,'present',elapsed(),is_review=True); save(); ss['review_idx']+=1; ss['patch_start']=time.time(); st.rerun()
         with c2:
-            if st.button("❌ Absent",type="secondary",use_container_width=True):
+            if st.button("❌ Absent",type="secondary",width='stretch'):
                 ss['my_patches']=upd(ss['my_patches'],pid,'absent',elapsed(),is_review=True); save(); ss['review_idx']+=1; ss['patch_start']=time.time(); st.rerun()
     else:
         ul=get_unlabeled(mp)
@@ -227,25 +229,25 @@ else:
             st.warning("🚩 Flag as which? Choose your best guess.")
             c1,c2,c3=st.columns(3)
             with c1:
-                if st.button("🚩 Flag as Present",use_container_width=True):
+                if st.button("🚩 Flag as Present",width='stretch'):
                     ss['my_patches']=upd(ss['my_patches'],pid,'present',elapsed(),orig='present'); ss['flagging']=False; save(); ss['patch_start']=time.time(); st.rerun()
             with c2:
-                if st.button("🚩 Flag as Absent",use_container_width=True):
+                if st.button("🚩 Flag as Absent",width='stretch'):
                     ss['my_patches']=upd(ss['my_patches'],pid,'absent',elapsed(),orig='absent'); ss['flagging']=False; save(); ss['patch_start']=time.time(); st.rerun()
             with c3:
-                if st.button("Cancel",use_container_width=True):
+                if st.button("Cancel",width='stretch'):
                     ss['flagging']=False; st.rerun()
         else:
             c1,c2,c3,c4=st.columns(4)
             with c1:
-                if st.button("✅ Present",type="primary",use_container_width=True):
+                if st.button("✅ Present",type="primary",width='stretch'):
                     ss['my_patches']=upd(ss['my_patches'],pid,'present',elapsed()); save(); ss['patch_start']=time.time(); st.rerun()
             with c2:
-                if st.button("❌ Absent",type="secondary",use_container_width=True):
+                if st.button("❌ Absent",type="secondary",width='stretch'):
                     ss['my_patches']=upd(ss['my_patches'],pid,'absent',elapsed()); save(); ss['patch_start']=time.time(); st.rerun()
             with c3:
-                if st.button("⏭ Skip",use_container_width=True):
+                if st.button("⏭ Skip",width='stretch'):
                     ss['my_patches']=skip(ss['my_patches'],pid,elapsed()); save(); ss['patch_start']=time.time(); st.rerun()
             with c4:
-                if st.button("🚩 Flag",use_container_width=True):
+                if st.button("🚩 Flag",width='stretch'):
                     ss['flagging']=True; st.rerun()
