@@ -267,12 +267,7 @@ def enter_rev(rt):
     else:
         ps = fmp[
             fmp['was_flagged'].apply(is_true) &
-            ~fmp['label'].isin(['present','absent']) == False
-        ]
-        # flagged but not yet reviewed = was_flagged=True and original_label==final_label
-        ps = fmp[
-            fmp['was_flagged'].apply(is_true) &
-            (fmp['final_label'].isna() | (fmp['final_label']==fmp['original_label']))
+            fmp['final_label'].isna()
         ]
     if len(ps)>0:
         ss['review_mode']=rt; ss['review_idx']=0
