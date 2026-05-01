@@ -306,7 +306,7 @@ mp = ss['my_patches']; c = get_counts(ss['my_patches'])
 progress = f"{c['done']}/{c['total']}"
 feature_title = FEATURE_INFO.get(feature, {}).get('title', feature)
 
-col_status, col_pause = st.columns([8, 1])
+col_status, col_pause = st.columns([7, 2])
 with col_status:
     st.markdown(
         f"**👤 Annotator {ANNOTATOR_ID}** | **📋 {feature_title}** | **📊 {progress}**"
@@ -314,17 +314,17 @@ with col_status:
     )
 with col_pause:
     if ss.get('paused'):
-        if st.button("▶ Resume", type="primary", use_container_width=True):
+        if st.button("▶️ Resume", type="primary", use_container_width=True):
             ss['paused'] = False
             ss['patch_start'] = time.time()
             st.rerun()
     else:
-        if st.button("⏸ Pause", use_container_width=True):
+        if st.button("⏸️ 🕐 Pause", use_container_width=True):
             ss['paused'] = True
             st.rerun()
 
 if ss.get('paused'):
-    st.info("⏸ **Paused.** Click Resume when you're ready to continue. Your progress is saved.")
+    st.warning("⏸️ **Session paused.** Your progress is saved. Click **▶️ Resume** when you're ready to continue.")
     st.stop()
 
 if ss.get('show_congrats'):
@@ -412,6 +412,7 @@ def show_sidebar():
 - A feature counts as Present even if only partially visible
 - When in doubt between Skip and Flag, use Flag
 - Progress saves automatically after every click
+- ⏸️ **Need a break?** Click **Pause** at the top right before stepping away — this ensures your annotation time is recorded accurately
         """)
 
 def show_img(pid):
