@@ -200,7 +200,6 @@ def get_counts(mp):
         'skipped': int((labels.isin(['skipped','deferred'])).sum()),
         'flagged': int(flagged.sum()),
     }
-    }
 
 def get_unlabeled(mp): return mp[mp['label'].isna() | (mp['label']=='')].reset_index(drop=True)
 
