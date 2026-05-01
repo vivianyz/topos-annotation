@@ -24,8 +24,46 @@ section[data-testid="stSidebar"] > div { width: 380px !important; }
 SCOPES = ['https://www.googleapis.com/auth/drive']
 FOLDER_ID = st.secrets["TOPOS_FOLDER_ID"]
 PATCHES_FOLDER_ID = st.secrets["PATCHES_FOLDER_ID"]
-FEATURES = ['Feature_1', 'Feature_2', 'Feature_3', 'Feature_4']
-ANNOTATOR_ID = "008"
+FEATURES = ['clearing', 'water', 'wood_church', 'bridge']
+ANNOTATOR_ID = '000'  # hardcoded for test app
+
+FEATURE_INFO = {
+    'clearing': {
+        'title': 'Forest Clearings',
+        'folder': 'clearing',
+        'description': (
+            'Forest clearings are a key component of the agricultural landscape. '
+            'They are characterized, in most cases, by thin vertical lines perpendicular '
+            'to shorter horizontal lines set against a blank background. '
+            'Cleared areas often lack boundary lines and their shapes are irregular.'
+        ),
+    },
+    'water': {
+        'title': 'Water Bodies',
+        'folder': 'water',
+        'description': (
+            'For the purposes of this activity, we want to identify ponds, lakes, and similar '
+            'bodies of water (rather than streams or rivers). '
+            'Water bodies are bounded and are depicted by a series of nested polygons.'
+        ),
+    },
+    'wood_church': {
+        'title': 'Wooden Churches',
+        'folder': 'wood church',
+        'description': (
+            'The map depicts a range of religious sites. We want to identify wooden churches. '
+            'They are depicted with empty circles topped by a vertical cross.'
+        ),
+    },
+    'bridge': {
+        'title': 'Bridges',
+        'folder': 'bridge',
+        'description': (
+            'Bridges over water, land, railways, and roads are all depicted by a pair of '
+            'parallel lines whose ends curl outward. They vary in size and orientation.'
+        ),
+    },
+}
 
 @st.cache_resource
 def get_creds():
@@ -346,21 +384,58 @@ You are helping digitize the Military-Topographic Survey of European Russia (MTS
 """
 
 @st.cache_data(ttl=3600)
+SCREENCAPTURES_FOLDER = 'feature screencaptures'
+
+@st.cache_data(ttl=3600)
+def get_screencaptures_folder_id(_svc, parent_folder_id):
+    r = _svc.files().list(
+        q=f"name='feature screencaptures' and '{parent_folder_id}' in parents and trashed=false and mimeType='application/vnd.google-apps.folder'",
+        fields="files(id)"
+    ).execute()
+    f = r.get('files', [])
+    return f[0]['id'] if f else None
+
+@st.cache_data(ttl=3600)
+def get_subfolder_id(_svc, parent_id, name):
+    r = _svc.files().list(
+        q=f"name='{name}' and '{parent_id}' in parents and trashed=false and mimeType='application/vnd.google-apps.folder'",
+        fields="files(id)"
+    ).execute()
+    f = r.get('files', [])
+    return f[0]['id'] if f else None
+
+@st.cache_data(ttl=3600)
 def load_sample_img(_svc, feature, folder_id):
-    fidx = FEATURES.index(feature) + 1
-    fname = f'sample_{fidx}.png'
-    fid = find_file(_svc, fname, folder_id)
-    if not fid:
-        return None
     try:
-        return dl_img(_svc, fid)
+        sc_fid = get_screencaptures_folder_id(_svc, folder_id)
+        if not sc_fid:
+            return None
+        info = FEATURE_INFO.get(feature, {})
+        subfolder_name = info.get('folder', feature)
+        sub_fid = get_subfolder_id(_svc, sc_fid, subfolder_name)
+        if not sub_fid:
+            return None
+        # Get first image in subfolder
+        r = _svc.files().list(
+            q=f"'{sub_fid}' in parents and trashed=false and mimeType contains 'image/'",
+            fields="files(id, name)",
+            pageSize=1,
+            orderBy="name"
+        ).execute()
+        imgs = r.get('files', [])
+        if not imgs:
+            return None
+        return dl_img(_svc, imgs[0]['id'])
     except Exception:
         return None
 
 def show_img(pid):
     with st.sidebar:
         st.markdown("## 📖 Annotation Guide")
-        st.markdown(f"Your task is to identify **{feature.replace('_', ' ')}** in each map patch. Below is a sample reference image to guide your judgment.")
+        info = FEATURE_INFO.get(feature, {})
+        st.markdown(f"Your task is to identify **{info.get('title', feature)}** in each map patch. Below is a sample reference image to guide your judgment.")
+        if info.get('description'):
+            st.info(info['description'])
         st.divider()
         sample = load_sample_img(svc, feature, FOLDER_ID)
         if sample:
