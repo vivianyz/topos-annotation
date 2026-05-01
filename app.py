@@ -181,19 +181,19 @@ def init_state():
         'csv_file_id':None,'csv_filename':None,'feature_idx':0,'review_mode':None,
         'review_idx':0,'review_patches':None,'review_total':0,'patch_start':None,
         'flagging':False,'patch_index':None,'saving':False,'show_congrats':None,
-        'all_done':False,'annotations_folder_id':None,'patches_folder_id':None,'sample_idx':0,
+        'all_done':False,'annotations_folder_id':None,'patches_folder_id':None,'sample_idx':0,'review_round':1,
     }.items():
         if k not in st.session_state: st.session_state[k] = v
 
 init_state()
 
 def get_counts(mp):
-    labeled = mp['label'].isin(['present','absent'])
+    labeled = mp['label'].isin(['present','absent','unknown'])
     return {
         'total':len(mp), 'done':int(labeled.sum()),
         'present':int((mp['label']=='present').sum()),
         'absent':int((mp['label']=='absent').sum()),
-        'skipped':int(mp['was_skipped'].apply(is_true).sum()),
+        'skipped':int(mp['label'].isin(['skipped','deferred']).sum()),
         'flagged':int(mp['was_flagged'].apply(is_true).sum()),
     }
 
@@ -334,10 +334,10 @@ def adv_feat():
                'csv_file_id':fid,'csv_filename':fn,'patch_start':time.time(),'show_congrats':completed})
     st.rerun()
 
-def enter_rev(rt):
+def enter_rev(rt, round_num=1):
     fmp = ss['my_patches']
     if rt=='skipped':
-        ps = fmp[fmp['label']=='skipped']
+        ps = fmp[fmp['label']==('skipped' if round_num==1 else 'deferred')]
     else:
         def needs_review(row):
             fl = str(row.get('final_label',''))
@@ -346,12 +346,15 @@ def enter_rev(rt):
     if len(ps)>0:
         ss['review_mode']=rt; ss['review_idx']=0
         ss['review_patches']=ps.reset_index(drop=True)
-        ss['review_total']=len(ps); ss['patch_start']=time.time()
+        ss['review_total']=len(ps)
+        ss['review_round']=round_num
+        ss['patch_start']=time.time()
         st.rerun()
-    else: nxt_rev(rt)
+    else: nxt_rev(rt, round_num)
 
-def nxt_rev(cur):
-    if cur=='skipped': enter_rev('flagged')
+def nxt_rev(cur, round_num=1):
+    if cur=='skipped' and round_num==1: enter_rev('skipped', round_num=2)
+    elif cur=='skipped' and round_num==2: enter_rev('flagged')
     elif ss['feature_idx']<len(FEATURES)-1: adv_feat()
     else: ss['all_done']=True; st.rerun()
 
@@ -412,9 +415,10 @@ if ss['review_mode'] is not None:
     fresh_mp = ss['my_patches']
     def has_final(val): return str(val) not in ('','nan','None','<NA>')
     if rt=='skipped':
+        round_num = ss.get('review_round', 1)
         n_total = int(fresh_mp['was_skipped'].apply(is_true).sum())
-        n_done  = int((fresh_mp['was_skipped'].apply(is_true) & fresh_mp['label'].isin(['present','absent'])).sum())
-        st.markdown(f"#### ⏭ Review {n_done}/{n_total} skipped patches")
+        n_done  = int((fresh_mp['was_skipped'].apply(is_true) & fresh_mp['label'].isin(['present','absent','unknown'])).sum())
+        st.markdown(f"#### ⏭ Review {n_done}/{n_total} skipped patches — Round {round_num} of 2")
     else:
         n_total = int(fresh_mp['was_flagged'].apply(is_true).sum())
         n_done  = int((fresh_mp['was_flagged'].apply(is_true) & fresh_mp['final_label'].apply(has_final)).sum())
@@ -422,15 +426,47 @@ if ss['review_mode'] is not None:
         orig = str(row.get('original_label',''))
         if orig not in ('nan','<NA>','','None'): st.info(f"🏷️ Original: **{orig}**")
     show_img(pid)
-    c1,c2=st.columns(2)
-    with c1:
-        if st.button("✅ Present", type="primary", use_container_width=True, disabled=ss["saving"]):
-            ss['my_patches']=upd(ss['my_patches'],pid,'present',elapsed(),is_review=True)
-            ss['review_idx']+=1; save()
-    with c2:
-        if st.button("❌ Absent", type="secondary", use_container_width=True, disabled=ss["saving"]):
-            ss['my_patches']=upd(ss['my_patches'],pid,'absent',elapsed(),is_review=True)
-            ss['review_idx']+=1; save()
+    if rt=='skipped':
+        round_num = ss.get('review_round', 1)
+        if round_num == 1:
+            c1,c2,c3=st.columns(3)
+            with c1:
+                if st.button("✅ Present", type="primary", use_container_width=True, disabled=ss["saving"]):
+                    ss['my_patches']=upd(ss['my_patches'],pid,'present',elapsed(),is_review=True)
+                    ss['review_idx']+=1; save()
+            with c2:
+                if st.button("❌ Absent", type="secondary", use_container_width=True, disabled=ss["saving"]):
+                    ss['my_patches']=upd(ss['my_patches'],pid,'absent',elapsed(),is_review=True)
+                    ss['review_idx']+=1; save()
+            with c3:
+                if st.button("⏭ Skip", use_container_width=True, disabled=ss["saving"]):
+                    idx2 = ss['my_patches'][ss['my_patches']['patch_id']==pid].index[0]
+                    ss['my_patches'].at[idx2,'label'] = 'deferred'  # deferred to round 2
+                    ss['review_idx']+=1; save()
+        else:
+            c1,c2,c3=st.columns(3)
+            with c1:
+                if st.button("✅ Present", type="primary", use_container_width=True, disabled=ss["saving"]):
+                    ss['my_patches']=upd(ss['my_patches'],pid,'present',elapsed(),is_review=True)
+                    ss['review_idx']+=1; save()
+            with c2:
+                if st.button("❌ Absent", type="secondary", use_container_width=True, disabled=ss["saving"]):
+                    ss['my_patches']=upd(ss['my_patches'],pid,'absent',elapsed(),is_review=True)
+                    ss['review_idx']+=1; save()
+            with c3:
+                if st.button("❓ Unknown", use_container_width=True, disabled=ss["saving"]):
+                    ss['my_patches']=upd(ss['my_patches'],pid,'unknown',elapsed(),is_review=True)
+                    ss['review_idx']+=1; save()
+    else:
+        c1,c2=st.columns(2)
+        with c1:
+            if st.button("✅ Present", type="primary", use_container_width=True, disabled=ss["saving"]):
+                ss['my_patches']=upd(ss['my_patches'],pid,'present',elapsed(),is_review=True)
+                ss['review_idx']+=1; save()
+        with c2:
+            if st.button("❌ Absent", type="secondary", use_container_width=True, disabled=ss["saving"]):
+                ss['my_patches']=upd(ss['my_patches'],pid,'absent',elapsed(),is_review=True)
+                ss['review_idx']+=1; save()
 else:
     ul=get_unlabeled(ss['my_patches'])
     if len(ul)==0: enter_rev('skipped'); st.stop()
