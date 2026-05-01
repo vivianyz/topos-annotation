@@ -317,13 +317,15 @@ if ss.get('show_congrats'):
     ss['show_congrats'] = None
 
 def elapsed(): return round(time.time()-ss['patch_start'],1) if ss['patch_start'] else None
-def save(): ss['saving']=True; st.rerun()
+def save():
+    ss['saving'] = True
+    st.rerun()
 
 if ss.get('saving', False):
     with st.spinner("💾 Saving... please wait"):
         save_all(ss['my_patches'],ss['csv_file_id'],ss['csv_filename'],ss['annotations_folder_id'])
     ss['saving'] = False
-    ss['patch_start'] = time.time()
+    ss['patch_start'] = time.time()  # start timing next patch AFTER save completes
     st.rerun()
 
 def adv_feat():
