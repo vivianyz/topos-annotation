@@ -417,6 +417,7 @@ def show_sidebar():
 - When in doubt between Skip and Flag, use Flag
 - Progress saves automatically after every click
 - ⏸️ **Need a break?** Click **Pause** at the top right before stepping away — this ensures your annotation time is recorded accurately
+- ⚠️ **Please use only one browser tab at a time** — opening the same link in multiple tabs may cause the app to crash
         """)
 
 def show_img(pid):
