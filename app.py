@@ -363,6 +363,24 @@ def show_sidebar():
         if info.get('description'):
             st.info(info['description'])
         st.divider()
+        samples = load_all_sample_imgs(svc, feature, FOLDER_ID)
+        if samples:
+            n = len(samples)
+            idx = ss.get('sample_idx', 0) % n
+            st.caption(f"📖 Sample reference ({idx+1}/{n})")
+            st.image(samples[idx], use_container_width=True)
+            c1, c2 = st.columns(2)
+            with c1:
+                if st.button("◀ Prev", use_container_width=True, key="prev_sample"):
+                    ss['sample_idx'] = (idx - 1) % n
+                    st.rerun()
+            with c2:
+                if st.button("Next ▶", use_container_width=True, key="next_sample"):
+                    ss['sample_idx'] = (idx + 1) % n
+                    st.rerun()
+        else:
+            st.info("Sample images coming soon.")
+        st.divider()
         st.markdown("""
 **For each patch:**
 - ✅ **Present** — The feature is visible in this patch
@@ -378,41 +396,14 @@ def show_sidebar():
 
 def show_img(pid):
     show_sidebar()
-    samples = load_all_sample_imgs(svc, feature, FOLDER_ID)
-    info = FEATURE_INFO.get(feature, {})
-
-    col_left, col_right = st.columns([1, 1])
-
-    with col_left:
-        st.caption(f"📖 Sample reference — {info.get('title', feature)}")
-        if samples:
-            n = len(samples)
-            idx = ss.get('sample_idx', 0) % n
-            st.image(samples[idx], width=420)
-            c1, c2, c3 = st.columns([1, 2, 1])
-            with c1:
-                if st.button("◀", key="prev_sample"):
-                    ss['sample_idx'] = (idx - 1) % n
-                    st.rerun()
-            with c2:
-                st.caption(f"{idx+1} / {n}")
-            with c3:
-                if st.button("▶", key="next_sample"):
-                    ss['sample_idx'] = (idx + 1) % n
-                    st.rerun()
-        else:
-            st.info("Sample images coming soon.")
-
-    with col_right:
-        st.caption("🗺️ Patch to label")
-        if pid not in ss['patch_index']:
-            st.warning("⚠️ Image not uploaded yet — you can still label below.")
-            return
-        try:
-            img = dl_img(svc, ss['patch_index'][pid])
-            st.image(img, width=420)
-        except Exception:
-            st.warning("⚠️ Image not available — you can still label below.")
+    if pid not in ss['patch_index']:
+        st.warning("⚠️ Image not uploaded yet — you can still label below.")
+        return
+    try:
+        img = dl_img(svc, ss['patch_index'][pid])
+        st.image(img, width=480)
+    except Exception:
+        st.warning("⚠️ Image not available — you can still label below.")
 
 if ss['review_mode'] is not None:
     rt=ss['review_mode']; ps=ss['review_patches']; idx=ss['review_idx']
