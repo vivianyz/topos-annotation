@@ -21,7 +21,7 @@ SCOPES = ['https://www.googleapis.com/auth/drive']
 FOLDER_ID = st.secrets["TOPOS_FOLDER_ID"]
 PATCHES_FOLDER_ID = st.secrets["PATCHES_FOLDER_ID"]
 FEATURES = ['bridge', 'clearing', 'water', 'wood_church']
-ANNOTATOR_ID = '000'
+ANNOTATOR_ID = "008"
 
 FEATURE_INFO = {
     'clearing': {
