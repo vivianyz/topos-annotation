@@ -181,7 +181,7 @@ def init_state():
         'csv_file_id':None,'csv_filename':None,'feature_idx':0,'review_mode':None,
         'review_idx':0,'review_patches':None,'review_total':0,'patch_start':None,
         'flagging':False,'patch_index':None,'saving':False,'show_congrats':None,
-        'all_done':False,'annotations_folder_id':None,'patches_folder_id':None,'sample_idx':0,'review_round':1,
+        'all_done':False,'annotations_folder_id':None,'patches_folder_id':None,'sample_idx':0,'review_round':1,'paused':False,
     }.items():
         if k not in st.session_state: st.session_state[k] = v
 
@@ -305,10 +305,27 @@ st.markdown("#### 🗺️ Welcome to Project Imperiia — TopoS &nbsp; <small st
 mp = ss['my_patches']; c = get_counts(ss['my_patches'])
 progress = f"{c['done']}/{c['total']}"
 feature_title = FEATURE_INFO.get(feature, {}).get('title', feature)
-st.markdown(
-    f"**👤 Annotator {ANNOTATOR_ID}** | **📋 {feature_title}** | **📊 {progress}**"
-    f"&nbsp;&nbsp; ✅**{c['present']}** ❌**{c['absent']}** ⏭**{c['skipped']}** 🚩**{c['flagged']}**"
-)
+
+col_status, col_pause = st.columns([8, 1])
+with col_status:
+    st.markdown(
+        f"**👤 Annotator {ANNOTATOR_ID}** | **📋 {feature_title}** | **📊 {progress}**"
+        f"&nbsp;&nbsp; ✅**{c['present']}** ❌**{c['absent']}** ⏭**{c['skipped']}** 🚩**{c['flagged']}**"
+    )
+with col_pause:
+    if ss.get('paused'):
+        if st.button("▶ Resume", type="primary", use_container_width=True):
+            ss['paused'] = False
+            ss['patch_start'] = time.time()
+            st.rerun()
+    else:
+        if st.button("⏸ Pause", use_container_width=True):
+            ss['paused'] = True
+            st.rerun()
+
+if ss.get('paused'):
+    st.info("⏸ **Paused.** Click Resume when you're ready to continue. Your progress is saved.")
+    st.stop()
 
 if ss.get('show_congrats'):
     completed = ss['show_congrats']
