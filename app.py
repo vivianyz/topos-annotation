@@ -188,13 +188,18 @@ def init_state():
 init_state()
 
 def get_counts(mp):
-    labeled = mp['label'].isin(['present','absent','unknown'])
+    labels = mp['label'].astype(str)
+    flagged = mp['was_flagged'].astype(str).isin(['True','true','1','TRUE'])
+    skipped = mp['was_skipped'].astype(str).isin(['True','true','1','TRUE'])
     return {
-        'total':len(mp), 'done':int(labeled.sum()),
-        'present':int((mp['label']=='present').sum()),
-        'absent':int((mp['label']=='absent').sum()),
-        'skipped':int(mp['label'].isin(['skipped','deferred']).sum()),
-        'flagged':int(mp['was_flagged'].apply(is_true).sum()),
+        'total':   len(mp),
+        'done':    int((labels.isin(['present','absent','unknown'])).sum()),
+        'present': int(((labels == 'present') & ~flagged).sum()),
+        'absent':  int(((labels == 'absent') & ~flagged).sum()),
+        'unknown': int((labels == 'unknown').sum()),
+        'skipped': int((labels.isin(['skipped','deferred'])).sum()),
+        'flagged': int(flagged.sum()),
+    }
     }
 
 def get_unlabeled(mp): return mp[mp['label'].isna() | (mp['label']=='')].reset_index(drop=True)
@@ -310,7 +315,7 @@ col_status, col_pause = st.columns([7, 2])
 with col_status:
     st.markdown(
         f"**👤 Annotator {ANNOTATOR_ID}** | **📋 {feature_title}** | **📊 {progress}**"
-        f"&nbsp;&nbsp; ✅**{c['present']}** ❌**{c['absent']}** ⏭**{c['skipped']}** 🚩**{c['flagged']}**"
+        f"&nbsp;&nbsp; ✅**{c['present']}** ❌**{c['absent']}** ❓**{c['unknown']}** ⏭**{c['skipped']}** 🚩**{c['flagged']}**"
     )
 with col_pause:
     if ss.get('paused'):
