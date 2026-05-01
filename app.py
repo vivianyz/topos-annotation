@@ -150,21 +150,27 @@ def get_subfolder_id(_svc, parent_id, name):
     return f[0]['id'] if f else None
 
 @st.cache_data(ttl=3600)
-def load_sample_img(_svc, feature, folder_id):
+@st.cache_data(ttl=3600)
+def load_all_sample_imgs(_svc, feature, folder_id):
     try:
         sc_fid = get_screencaptures_folder_id(_svc, folder_id)
-        if not sc_fid: return None
+        if not sc_fid: return []
         subfolder_name = FEATURE_INFO.get(feature, {}).get('folder', feature)
         sub_fid = get_subfolder_id(_svc, sc_fid, subfolder_name)
-        if not sub_fid: return None
+        if not sub_fid: return []
         r = _svc.files().list(
             q=f"'{sub_fid}' in parents and trashed=false and mimeType contains 'image/'",
-            fields="files(id,name)", pageSize=1, orderBy="name").execute()
+            fields="files(id,name)", pageSize=20, orderBy="name").execute()
         imgs = r.get('files', [])
-        if not imgs: return None
-        return dl_img(_svc, imgs[0]['id'])
+        result = []
+        for img in imgs:
+            try:
+                result.append(dl_img(_svc, img['id']))
+            except Exception:
+                pass
+        return result
     except Exception:
-        return None
+        return []
 
 def is_true(v): return str(v).strip() in ('True','true','1','TRUE')
 def count_true(s): return int(s.apply(is_true).sum())
@@ -175,7 +181,7 @@ def init_state():
         'csv_file_id':None,'csv_filename':None,'feature_idx':0,'review_mode':None,
         'review_idx':0,'review_patches':None,'review_total':0,'patch_start':None,
         'flagging':False,'patch_index':None,'saving':False,'show_congrats':None,
-        'all_done':False,'annotations_folder_id':None,'patches_folder_id':None,
+        'all_done':False,'annotations_folder_id':None,'patches_folder_id':None,'sample_idx':0,
     }.items():
         if k not in st.session_state: st.session_state[k] = v
 
@@ -353,15 +359,9 @@ def show_sidebar():
     with st.sidebar:
         st.markdown("## 📖 Annotation Guide")
         info = FEATURE_INFO.get(feature, {})
-        st.markdown(f"Your task is to identify **{info.get('title', feature)}** in each map patch. Below is a sample reference image to guide your judgment.")
+        st.markdown(f"Your task is to identify **{info.get('title', feature)}** in each map patch.")
         if info.get('description'):
             st.info(info['description'])
-        st.divider()
-        sample = load_sample_img(svc, feature, FOLDER_ID)
-        if sample:
-            st.image(sample, use_container_width=True)
-        else:
-            st.info("Sample image coming soon.")
         st.divider()
         st.markdown("""
 **For each patch:**
@@ -378,14 +378,41 @@ def show_sidebar():
 
 def show_img(pid):
     show_sidebar()
-    if pid not in ss['patch_index']:
-        st.warning("⚠️ Image not uploaded yet — you can still label below.")
-        return
-    try:
-        img = dl_img(svc, ss['patch_index'][pid])
-        st.image(img, width=480)
-    except Exception:
-        st.warning("⚠️ Image not available — you can still label below.")
+    samples = load_all_sample_imgs(svc, feature, FOLDER_ID)
+    info = FEATURE_INFO.get(feature, {})
+
+    col_left, col_right = st.columns([1, 1])
+
+    with col_left:
+        st.caption(f"📖 Sample reference — {info.get('title', feature)}")
+        if samples:
+            n = len(samples)
+            idx = ss.get('sample_idx', 0) % n
+            st.image(samples[idx], width=420)
+            c1, c2, c3 = st.columns([1, 2, 1])
+            with c1:
+                if st.button("◀", key="prev_sample"):
+                    ss['sample_idx'] = (idx - 1) % n
+                    st.rerun()
+            with c2:
+                st.caption(f"{idx+1} / {n}")
+            with c3:
+                if st.button("▶", key="next_sample"):
+                    ss['sample_idx'] = (idx + 1) % n
+                    st.rerun()
+        else:
+            st.info("Sample images coming soon.")
+
+    with col_right:
+        st.caption("🗺️ Patch to label")
+        if pid not in ss['patch_index']:
+            st.warning("⚠️ Image not uploaded yet — you can still label below.")
+            return
+        try:
+            img = dl_img(svc, ss['patch_index'][pid])
+            st.image(img, width=420)
+        except Exception:
+            st.warning("⚠️ Image not available — you can still label below.")
 
 if ss['review_mode'] is not None:
     rt=ss['review_mode']; ps=ss['review_patches']; idx=ss['review_idx']
