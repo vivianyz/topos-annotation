@@ -21,7 +21,7 @@ SCOPES = ['https://www.googleapis.com/auth/drive']
 FOLDER_ID = st.secrets["TOPOS_FOLDER_ID"]
 PATCHES_FOLDER_ID = st.secrets["PATCHES_FOLDER_ID"]
 FEATURES = ['bridge', 'clearing', 'water', 'wood_church']
-ANNOTATOR_ID = "008"
+ANNOTATOR_ID = "002"
 
 FEATURE_INFO = {
     'clearing': {
@@ -417,7 +417,6 @@ def show_sidebar():
 - When in doubt between Skip and Flag, use Flag
 - Progress saves automatically after every click
 - ⏸️ **Need a break?** Click **Pause** at the top right before stepping away — this ensures your annotation time is recorded accurately
-- ⚠️ **Please use only one browser tab at a time** — opening the same link in multiple tabs may cause the app to crash
         """)
 
 def show_img(pid):
