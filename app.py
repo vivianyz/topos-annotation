@@ -382,7 +382,7 @@ def show_sidebar():
         symbol = load_canonical_symbol(svc, feature, FOLDER_ID)
         if symbol:
             st.caption("🔬 Canonical symbol")
-            st.image(symbol, use_container_width=True)
+            st.image(symbol, use_container_width=False)
         else:
             st.info("Canonical symbol coming soon.")
         st.divider()
