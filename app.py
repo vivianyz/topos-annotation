@@ -221,6 +221,10 @@ def load_feature(svc, aid, fidx, adf, ann_fid):
     return mp, file_id, fname
 
 def save_all(mp, fid, fname, ann_fid):
+    # Safety check: verify filename contains correct annotator ID before writing
+    expected = f'annotator_{ANNOTATOR_ID}_'
+    if not fname.startswith(expected):
+        return  # refuse to write to wrong file
     new_id = ul_csv(mp, fid, fname, ann_fid)
     if new_id and new_id != fid:
         st.session_state['csv_file_id'] = new_id
