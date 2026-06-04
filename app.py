@@ -21,7 +21,7 @@ SCOPES = ['https://www.googleapis.com/auth/drive']
 FOLDER_ID = st.secrets["TOPOS_FOLDER_ID"]
 PATCHES_FOLDER_ID = st.secrets["PATCHES_FOLDER_ID"]
 FEATURES = ['bridge', 'clearing', 'water', 'wood_church']
-ANNOTATOR_ID = "008"
+ANNOTATOR_ID = "006"
 
 FEATURE_INFO = {
     'clearing': {
@@ -134,43 +134,35 @@ def load_patch_index(_svc, pfid):
     return {f['name']: f['id'] for f in files}
 
 @st.cache_data(ttl=3600)
-def get_screencaptures_folder_id(_svc, parent_folder_id):
+def get_symbols_folder_id(_svc, parent_folder_id):
     r = _svc.files().list(
-        q=f"name='feature screencaptures' and '{parent_folder_id}' in parents and trashed=false and mimeType='application/vnd.google-apps.folder'",
+        q=f"name='feature symbols' and '{parent_folder_id}' in parents and trashed=false and mimeType='application/vnd.google-apps.folder'",
         fields="files(id)").execute()
     f = r.get('files', [])
     return f[0]['id'] if f else None
 
-@st.cache_data(ttl=3600)
-def get_subfolder_id(_svc, parent_id, name):
-    r = _svc.files().list(
-        q=f"name='{name}' and '{parent_id}' in parents and trashed=false and mimeType='application/vnd.google-apps.folder'",
-        fields="files(id)").execute()
-    f = r.get('files', [])
-    return f[0]['id'] if f else None
+CANONICAL_FILENAMES = {
+    'bridge':      'bridge_canonical.png',
+    'clearing':    'clearing_canonical.png',
+    'water':       'water_canonical.png',
+    'wood_church': 'woodchurch_canonical.png',
+}
 
 @st.cache_data(ttl=3600)
-@st.cache_data(ttl=3600)
-def load_all_sample_imgs(_svc, feature, folder_id):
+def load_canonical_symbol(_svc, feature, folder_id):
     try:
-        sc_fid = get_screencaptures_folder_id(_svc, folder_id)
-        if not sc_fid: return []
-        subfolder_name = FEATURE_INFO.get(feature, {}).get('folder', feature)
-        sub_fid = get_subfolder_id(_svc, sc_fid, subfolder_name)
-        if not sub_fid: return []
+        sym_fid = get_symbols_folder_id(_svc, folder_id)
+        if not sym_fid: return None
+        fname = CANONICAL_FILENAMES.get(feature)
+        if not fname: return None
         r = _svc.files().list(
-            q=f"'{sub_fid}' in parents and trashed=false and mimeType contains 'image/'",
-            fields="files(id,name)", pageSize=20, orderBy="name").execute()
-        imgs = r.get('files', [])
-        result = []
-        for img in imgs:
-            try:
-                result.append(dl_img(_svc, img['id']))
-            except Exception:
-                pass
-        return result
+            q=f"name='{fname}' and '{sym_fid}' in parents and trashed=false",
+            fields="files(id,name)").execute()
+        files = r.get('files', [])
+        if not files: return None
+        return dl_img(_svc, files[0]['id'])
     except Exception:
-        return []
+        return None
 
 def is_true(v): return str(v).strip() in ('True','true','1','TRUE')
 def count_true(s): return int(s.apply(is_true).sum())
@@ -387,37 +379,37 @@ def show_sidebar():
         if info.get('description'):
             st.info(info['description'])
         st.divider()
-        samples = load_all_sample_imgs(svc, feature, FOLDER_ID)
-        if samples:
-            n = len(samples)
-            idx = ss.get('sample_idx', 0) % n
-            st.caption(f"📖 Sample reference ({idx+1}/{n})")
-            st.image(samples[idx], use_container_width=True)
-            c1, c2 = st.columns(2)
-            with c1:
-                if st.button("◀ Prev", use_container_width=True, key="prev_sample"):
-                    ss['sample_idx'] = (idx - 1) % n
-                    st.rerun()
-            with c2:
-                if st.button("Next ▶", use_container_width=True, key="next_sample"):
-                    ss['sample_idx'] = (idx + 1) % n
-                    st.rerun()
+        symbol = load_canonical_symbol(svc, feature, FOLDER_ID)
+        if symbol:
+            st.caption("🔬 Canonical symbol")
+            st.image(symbol, use_container_width=False)
         else:
-            st.info("Sample images coming soon.")
+            st.info("Canonical symbol coming soon.")
         st.divider()
         st.markdown("""
 **For each patch:**
 - ✅ **Present** — The feature is visible in this patch
 - ❌ **Absent** — The feature is not visible
-- ⏭ **Skip** — Unsure; you will review skipped patches at the end
-- 🚩 **Flag** — Make your best guess but mark for review
+- ⏭ **Skip** — You truly cannot decide. Skipped patches come back for review at the end, where you can also choose ❓ Unknown
+- 🚩 **Flag** — You have a leaning but aren't confident. Choose Present or Absent — it gets reviewed at the end
+
+**Skip vs. Flag:**
+- **Skip** = no idea at all
+- **Flag** = have a guess, want a second look
+- During review, **skipped** patches offer a third option: **❓ Unknown** — use this only if you truly still can't decide
+
+**At the end of each feature round:**
+1. Review all **skipped** patches → Present / Absent / ❓ Unknown
+2. Review all **flagged** patches → confirm or change your guess
+3. Move automatically to the next feature
 
 **Tips:**
-- A feature counts as Present even if only partially visible
-- When in doubt between Skip and Flag, use Flag
+- Present counts even if the feature is only partially visible or at the edge
+- When torn between Skip and Flag, use Flag
 - Progress saves automatically after every click
-- ⏸️ **Need a break?** Click **Pause** at the top right before stepping away — this ensures your annotation time is recorded accurately
-- ⚠️ **Please use only one browser tab at a time** — opening the same link in multiple tabs may cause the app to crash
+- ⏸️ **Stepping away?** Click **Pause** first — keeps your timing accurate
+- ⚠️ **One tab only** — multiple tabs may cause a crash
+- 🆘 **See an "Oh no" error?** Your progress is safe — contact Vivian to reboot
         """)
 
 def show_img(pid):
